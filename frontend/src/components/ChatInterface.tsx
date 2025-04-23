@@ -1,7 +1,10 @@
+import { ConversationSidebar } from "./ConversationSidebar"
+
 export const ChatInterface = () => {
     return (
-        <div>
-            This is the ChatInterface component.
+        <div className="flex h-screen bg-background text-foreground">
+            <ConversationSidebar />
+            
         </div>
     )
 }
