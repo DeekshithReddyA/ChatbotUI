@@ -9,5 +9,11 @@
 
     --card: 0 0% 10%;
     --card-foreground: 60 30% 96%;
+
+    --accent: 84 82% 61%;
+    --accent-foreground: 0 0% 10%;
+
+    --primary: 0 0% 15%;
+    --primary-fopeground: 60 30% 96%;
   }
 }
