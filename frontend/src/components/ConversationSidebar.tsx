@@ -1,17 +1,78 @@
+import { ScrollArea } from "@radix-ui/react-scroll-area"
+import { MessageSquareIcon } from "./icons/MessageSquareIcon"
+import { PlusIcon } from "./icons/PlusIcon"
 import { Button } from "./ui/Button"
+import { Settings2Icon } from "./icons/Settings2Icon";
+import { BadgeIcon } from "./icons/BadgeIcon";
 
-export const ConversationSidebar = () => {
+interface ConversationSidebarProps {
+    conversations?: any[];  // Need to change this type to Conversation[] type        
+    onNewConversation?: () => void;
+}
+
+export const ConversationSidebar = (props: ConversationSidebarProps) => {
+
+
     return(
-        <div className="flex flex-col h-full w-[240px] border-r border-border/40 bg-card">
+        <div className="flex flex-col h-full w-[260px] border-r border-border/40 bg-card">
+            {/* Logo */}
             <div className="p-4 bg-gradient-to-r from-accent/15 to-accent/5">
                 TARS AI
             </div>
-            <div className="p-4">
-                <Button className="w-full justify-start gap-2 bg-accent hover:bg-accent/90 text-accent-foreground font-medium shadow-md hover:shadow-lg transition-all duration-200">
-                
-                    New Conversation
+            {/* New Conversation Button */}
+            <div className="mt-1 p-4">
+                <Button
+                    onClick={props.onNewConversation} 
+                    className="w-full justify-start items-center gap-2 bg-accent hover:bg-accent/90 text-accent-foreground font-medium shadow-md hover:shadow-lg transition-all duration-200">
+                    <PlusIcon size={16} />
+                    <div className="font-medium">
+                        New Conversation
+                    </div>
                 </Button>
             </div>
+            {/* Recent Conversations Heading*/}
+            <div className="px-4 py-2">
+                <div className="flex items-center gap-2 text-accent font-medium">
+                    <MessageSquareIcon size={18} 
+                    className="animate-pulse-glow"/>
+                    <h2>Recent Conversations</h2>
+                </div>
+            </div>
+            {/* Conversations List */} 
+            {/* Need to implement this */}
+            <ScrollArea className="flex-1 px-2">
+                <div className="space-y-1 py-2">
+                    {}
+                </div>
+            </ScrollArea>
+            
+            <div className="p-3 space-y-2 mt-auto border-t border-border/40 bg-gradient-to-r from-accent/10 to-accent/25">
+                <Button 
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start gap-2 text-muted-foreground hover:text-white hover:bg-accent/10">
+                    <Settings2Icon size={18} />
+                    <div className="text-sm">
+                        Settings
+                    </div>
+                </Button>
+                <Button 
+                    variant="ghost"
+                    size="sm"
+                    className="w-full flex justify-start gap-2 text-accent hover:text-accent hover:bg-accent/10 py-5">
+                    <BadgeIcon size={20} />
+                    <div className="flex flex-col items-start">
+                        <div className="text-sm">
+                            Upgrade Plan
+                        </div>
+                        <div className="">
+                            Get Access to more models
+                        </div>
+                    </div>
+                </Button>
+            </div>
+
+
         </div>
     )
 }

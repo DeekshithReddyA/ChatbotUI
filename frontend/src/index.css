@@ -15,5 +15,30 @@
 
     --primary: 0 0% 15%;
     --primary-fopeground: 60 30% 96%;
+
+    --muted: 0 0% 15%;
+    --muted-foreground: 60 10% 75%;
+
+    --border: 0 0% 20%;
   }
+}
+
+
+/* Custom animations */
+@keyframes pulse-glow {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out forwards;
 }

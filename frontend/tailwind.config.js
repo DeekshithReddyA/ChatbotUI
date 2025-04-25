@@ -13,6 +13,7 @@ export default {
       colors: {
         background : "hsl(var(--background))",
         foreground : "hsl(var(--foreground))",
+        border: "hsl(var(--border))",
         card: {
           DEFAULT: "hsl(var(--card))",
         },
@@ -23,10 +24,24 @@ export default {
         primary:{
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+        },
+        // Settings button text
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
+        },
+      },
+      keyframes: {
+        "pulse-glow" : {
+          "0%, 100%": {opacity: 0.7},
+          "50%": {opacity: 1},
         }
+      },
+      animation:{
+        "pulse-glow": "pulse-glow 2s ease-in-out infinite",
       }
     },
   },
-  plugins: [],
+  plugins: [require("tailwindcss-animate")],
 }
 
