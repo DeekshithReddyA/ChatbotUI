@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "../lib/utils";
 import { ScrollArea } from "./ui/ScrollArea";
 import { Bot, User, Sparkles, Cpu, SendIcon} from "lucide-react";
@@ -71,8 +71,70 @@ const messages = [
   ];
 const currentModel = "gpt-4";
 
-export const Messages = () => {
+interface Message {
+    id: string;
+    content: string;
+    sender: "user" | "ai";
+    timestamp: Date;
+    model?: string;
+  }
+  
+  interface MessageThreadProps {
+    messages?: Message[];
+    currentModel?: string;
+    onModelChange?: (model: string) => void;
+    isLoading?: boolean;
+    model?: string;
+    availableModels?: Array<{ id: string; name: string }>;
+    onReplyWithContext?: (selectedText: string) => void;
+    selectedText?: string;
+    setSelectedText?: (text: string) => void;
+  }
+
+export const Messages = ({
+    messages = [
+        {
+          id: "1",
+          content: "Hello! How can I help you today?",
+          sender: "ai",
+          timestamp: new Date(),
+          model: "gpt-4",
+        },
+        {
+          id: "2",
+          content: "I need help with a coding problem.",
+          sender: "user",
+          timestamp: new Date(Date.now() - 60000),
+        },
+        {
+          id: "3",
+          content:
+            "Sure, I can help with that. What programming language are you working with and what specific issue are you facing?",
+          sender: "ai",
+          timestamp: new Date(Date.now() - 30000),
+          model: "gpt-4",
+        },
+      ],
+      currentModel = "gpt-4",
+      onModelChange = () => {},
+      isLoading = false,
+      model = "gpt-4",
+      availableModels = [
+        { id: "gpt-4", name: "GPT-4" },
+        { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo" },
+        { id: "claude-3", name: "Claude 3" },
+        { id: "llama-3", name: "Llama 3" },
+      ],
+      selectedText = "",
+      setSelectedText = () => {},
+      onReplyWithContext = () => {},
+}: MessageThreadProps) => {
     const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+  const [selectionPosition, setSelectionPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
 
     // Scroll to bottom when messages change
     useEffect(() => {
@@ -100,6 +162,44 @@ export const Messages = () => {
       return <Bot className="h-3 w-3 text-accent" />;
     }
   };
+  const handleSelection = () => {
+    const selection = window.getSelection();
+    if (!selection || selection.toString().trim() === "") {
+      setSelectedText("");
+      setSelectionPosition(null);
+      return;
+    }
+
+    const selectedStr = selection.toString().trim();
+    if (selectedStr) {
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      setSelectedText(selectedStr);
+      setSelectionPosition({ x: rect.left + rect.width / 2, y: rect.top - 10 });
+    }
+  };
+
+  // Handle click on reply with context button
+  const handleReplyWithContext = () => {
+    if (selectedText) {
+      onReplyWithContext(selectedText);
+      setSelectedText("");
+      setSelectionPosition(null);
+    }
+  };
+
+  // Clear selection when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setSelectedText("");
+      setSelectionPosition(null);
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
     return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
