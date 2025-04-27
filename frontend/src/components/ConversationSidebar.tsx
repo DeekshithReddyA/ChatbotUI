@@ -9,6 +9,39 @@ interface ConversationSidebarProps {
     conversations?: any[];  // Need to change this type to Conversation[] type        
     onNewConversation?: () => void;
 }
+const conversations = [
+    {
+      id: "1",
+      title: "Understanding Quantum Computing",
+      date: "2023-06-15",
+      model: "GPT-4",
+      selected: true,
+    },
+    {
+      id: "2",
+      title: "Machine Learning Basics",
+      date: "2023-06-14",
+      model: "GPT-3.5",
+    },
+    {
+      id: "3",
+      title: "Web Development Tips",
+      date: "2023-06-13",
+      model: "Claude",
+    },
+    {
+      id: "4",
+      title: "Data Science Projects",
+      date: "2023-06-12",
+      model: "GPT-4",
+    },
+    {
+      id: "5",
+      title: "AI Ethics Discussion",
+      date: "2023-06-11",
+      model: "GPT-3.5",
+    },
+  ];
 
 export const ConversationSidebar = (props: ConversationSidebarProps) => {
 
@@ -42,7 +75,15 @@ export const ConversationSidebar = (props: ConversationSidebarProps) => {
             {/* Need to implement this */}
             <ScrollArea className="flex-1 px-2">
                 <div className="space-y-1 py-2">
-                    {}
+                    {conversations.map((conversation) => {
+                        // const isActive = activeConversationId === conversation.id || conversation.selected;
+                        const isActive = false;
+                        return(
+                            <div key={conversation.id} className="">
+                                {conversation.title}
+                            </div>
+                        )
+                    })}
                 </div>
             </ScrollArea>
             

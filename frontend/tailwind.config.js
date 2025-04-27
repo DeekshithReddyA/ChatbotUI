@@ -35,10 +35,15 @@ export default {
         "pulse-glow" : {
           "0%, 100%": {opacity: 0.7},
           "50%": {opacity: 1},
-        }
+        },
+        "message-appear" : {
+          from : { opacity: 0, transform: "translateY(10px)" }, 
+          to: { opacity: 1, transform: "translateY(0)" }
+        },
       },
       animation:{
         "pulse-glow": "pulse-glow 2s ease-in-out infinite",
+        "message-appear": "message-appear 0.3s ease-in-out forwards",
       }
     },
   },
