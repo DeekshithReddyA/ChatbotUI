@@ -1,75 +1,12 @@
+//Message.tsx
 import { useEffect, useRef, useState } from "react";
 import { cn } from "../lib/utils";
 import { ScrollArea } from "./ui/ScrollArea";
 import { Bot, User, Sparkles, Cpu, SendIcon} from "lucide-react";
 import { Avatar, AvatarFallback } from "./ui/Avatar";
 import { Badge } from "./ui/Badge";
-const messages = [
-    {
-      id: "1",
-      content: "Hello! How can I help you today?",
-      sender: "ai",
-      timestamp: new Date(),
-      model: "gpt-4",
-    },
-    {
-      id: "2",
-      content: "I need help with a coding problem.",
-      sender: "user",
-      timestamp: new Date(Date.now() - 60000),
-    },
-    {
-      id: "3",
-      content:
-        "Sure, I can help with that. What programming language are you working with and what specific issue are you facing?",
-      sender: "ai",
-      timestamp: new Date(Date.now() - 30000),
-      model: "gpt-4",
-    },
-    {
-      id: "4",
-      content: "Hello! How can I help you today?",
-      sender: "ai",
-      timestamp: new Date(),
-      model: "gpt-4",
-    },
-    {
-      id: "5",
-      content: "I need help with a coding problem.",
-      sender: "user",
-      timestamp: new Date(Date.now() - 60000),
-    },
-    {
-      id: "6",
-      content:
-        "Sure, I can help with that. What programming language are you working with and what specific issue are you facing?",
-      sender: "ai",
-      timestamp: new Date(Date.now() - 30000),
-      model: "gpt-4",
-    },
-    {
-      id: "7",
-      content: "Hello! How can I help you today?",
-      sender: "ai",
-      timestamp: new Date(),
-      model: "gpt-4",
-    },
-    {
-      id: "8",
-      content: "I need help with a coding problem.",
-      sender: "user",
-      timestamp: new Date(Date.now() - 60000),
-    },
-    {
-      id: "9",
-      content:
-        "Sure, I can help with that. What programming language are you working with and what specific issue are you facing?",
-      sender: "ai",
-      timestamp: new Date(Date.now() - 30000),
-      model: "gpt-4",
-    },
-  ];
-const currentModel = "gpt-4";
+import  LatexText  from "./Latex";
+
 
 interface Message {
     id: string;
@@ -202,9 +139,9 @@ export const Messages = ({
   }, []);
 
     return (
-    <div className="flex flex-col h-full bg-background overflow-hidden">
+    <div className="flex flex-col h-full bg-background overflow-hidden px-2 sm:px-4">
         <ScrollArea className="flex-1 p-4 bg-background" ref={scrollAreaRef}>
-        <div className="max-w-[800px] mx-auto">
+        <div className="w-full max-w-[900px] mx-auto">
           <div className="space-y-6">
             {messages.map((message, index) => (
               <div
@@ -219,7 +156,7 @@ export const Messages = ({
               >
                 <div
                   className={cn(
-                    "flex gap-3 max-w-[80%]",
+                    "flex gap-3 w-full max-w-[80%]",
                     message.sender === "user" ? "flex-row-reverse" : "flex-row",
                   )}
                 >
@@ -243,15 +180,15 @@ export const Messages = ({
                   <div className="flex flex-col">
                     <div
                       className={cn(
-                        "rounded-2xl p-4 shadow-md",
+                        "rounded-2xl shadow-md w-full overflow-hidden",
                         message.sender === "user"
                           ? "bg-accent text-accent-foreground rounded-tr-none"
                           : "bg-card border border-border/40 text-foreground rounded-tl-none",
                       )}
                     >
-                      <p className="whitespace-pre-wrap leading-relaxed text-sm">
-                        {message.content}
-                      </p>
+                      <div className="leading-8 break-words text-sm">
+                        <LatexText content={message.content} />
+                      </div>
                     </div>
                     <div
                       className={cn(
