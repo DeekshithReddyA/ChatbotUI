@@ -27,7 +27,7 @@ export const ChatInterface = () => {
   const [conversations, setConversations] = useState<Conversation[]>([
     {
       id: "1",
-      title: "Project Ideas",
+      title: "Welcome to TARS Chat",
       lastMessage:
         "What about a recipe app that uses AI to suggest meals based on ingredients?",
       timestamp: new Date("2023-06-15T14:30:00"),
@@ -35,25 +35,37 @@ export const ChatInterface = () => {
       messages: [
         {
           id: "1-1",
-          content: "I need some project ideas for a portfolio.",
+          content: "What is TARS Chat?",
           sender: "user",
           timestamp: new Date("2023-06-15T14:28:00"),
         },
         {
           id: "1-2",
           content:
-            "Here are some project ideas: \n\n1. A personal finance tracker that helps users manage expenses and set savings goals\n\n2. A weather app with historical data visualization and trend analysis\n\n3. A recipe app that uses AI to suggest meals based on ingredients you have at home",
+            `### TARS Chat is the all in one AI Chat. 
+
+1. **Blazing Fast, Model-Packed.**\n 
+    We’re not just fast — we’re **2x faster than ChatGPT**, **10x faster than DeepSeek**. With **20+ models** (Claude, DeepSeek, ChatGPT-4o, and more), you’ll always have the right AI for the job — and new ones arrive *within hours* of launch.
+
+2. **Flexible Payments.**\n
+   Tired of rigid subscriptions? TARS Chat lets you choose *your* way to pay.\n
+   • Just want occasional access? Buy credits that last a full **year**.\n
+   • Want unlimited vibes? Subscribe for **$10/month** and get **2,000+ messages**.
+
+3. **No Credit Card? No Problem.**\n
+   Unlike others, we welcome everyone.
+   **UPI, debit cards, net banking, credit cards — all accepted.**
+   Students, you're not locked out anymore.
+
+
+
+
+Reply here to get started, or click the little "chat" icon up top to make a new chat. Or you can [check out the FAQ](/chat/faq)`,
           sender: "ai",
           timestamp: new Date("2023-06-15T14:29:00"),
           model: "gpt-4",
         },
-        {
-          id: "1-3",
-          content:
-            "What about a recipe app that uses AI to suggest meals based on ingredients?",
-          sender: "user",
-          timestamp: new Date("2023-06-15T14:30:00"),
-        },
+        
       ],
     },
     {
