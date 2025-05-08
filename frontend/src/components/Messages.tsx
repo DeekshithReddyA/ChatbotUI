@@ -1,95 +1,93 @@
-//Message.tsx
+
 import { useEffect, useRef, useState } from "react";
 import { cn } from "../lib/utils";
 import { ScrollArea } from "./ui/ScrollArea";
-import { Bot, User, Sparkles, Cpu, SendIcon} from "lucide-react";
+import { Bot, User, Sparkles, Cpu } from "lucide-react";
 import { Avatar, AvatarFallback } from "./ui/Avatar";
 import { Badge } from "./ui/Badge";
-import  LatexText  from "./Latex";
-
+import LatexText from "./Latex";
 
 interface Message {
-    id: string;
-    content: string;
-    sender: "user" | "ai";
-    timestamp: Date;
-    model?: string;
-  }
-  
-  interface MessageThreadProps {
-    messages?: Message[];
-    currentModel?: string;
-    onModelChange?: (model: string) => void;
-    isLoading?: boolean;
-    model?: string;
-    availableModels?: Array<{ id: string; name: string }>;
-    onReplyWithContext?: (selectedText: string) => void;
-    selectedText?: string;
-    setSelectedText?: (text: string) => void;
-  }
+  id: string;
+  content: string;
+  sender: "user" | "ai";
+  timestamp: Date;
+  model?: string;
+}
+
+interface MessageThreadProps {
+  messages?: Message[];
+  currentModel?: string;
+  onModelChange?: (model: string) => void;
+  isLoading?: boolean;
+  availableModels?: Array<{ id: string; name: string }>;
+  onReplyWithContext?: (selectedText: string) => void;
+  selectedText?: string;
+  setSelectedText?: (text: string) => void;
+  streamingResponse?: string; // New prop for streaming response
+}
 
 export const Messages = ({
-    messages = [
-        {
-          id: "1",
-          content: "Hello! How can I help you today?",
-          sender: "ai",
-          timestamp: new Date(),
-          model: "gpt-4",
-        },
-        {
-          id: "2",
-          content: "I need help with a coding problem.",
-          sender: "user",
-          timestamp: new Date(Date.now() - 60000),
-        },
-        {
-          id: "3",
-          content:
-            "Sure, I can help with that. What programming language are you working with and what specific issue are you facing?",
-          sender: "ai",
-          timestamp: new Date(Date.now() - 30000),
-          model: "gpt-4",
-        },
-      ],
-      currentModel = "gpt-4",
-      onModelChange = () => {},
-      isLoading = false,
-      model = "gpt-4",
-      availableModels = [
-        { id: "gpt-4", name: "GPT-4" },
-        { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo" },
-        { id: "claude-3", name: "Claude 3" },
-        { id: "llama-3", name: "Llama 3" },
-      ],
-      selectedText = "",
-      setSelectedText = () => {},
-      onReplyWithContext = () => {},
+  messages = [
+    {
+      id: "1",
+      content: "Hello! How can I help you today?",
+      sender: "ai",
+      timestamp: new Date(),
+      model: "gpt-4",
+    },
+    {
+      id: "2",
+      content: "I need help with a coding problem.",
+      sender: "user",
+      timestamp: new Date(Date.now() - 60000),
+    },
+    {
+      id: "3",
+      content:
+        "Sure, I can help with that. What programming language are you working with and what specific issue are you facing?",
+      sender: "ai",
+      timestamp: new Date(Date.now() - 30000),
+      model: "gpt-4",
+    },
+  ],
+  currentModel = "gpt-4",
+  onModelChange = () => {},
+  isLoading = false,
+  availableModels = [
+    { id: "gpt-4", name: "GPT-4" },
+    { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo" },
+    { id: "claude-3", name: "Claude 3" },
+    { id: "llama-3", name: "Llama 3" },
+  ],
+  selectedText = "",
+  setSelectedText = () => {},
+  onReplyWithContext = () => {},
+  streamingResponse = "", // Default to empty string for streaming content
 }: MessageThreadProps) => {
-    const scrollAreaRef = useRef<HTMLDivElement>(null);
-
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [selectionPosition, setSelectionPosition] = useState<{
     x: number;
     y: number;
   } | null>(null);
 
-    // Scroll to bottom when messages change
-    useEffect(() => {
+  // Scroll to bottom when messages change or when streaming content updates
+  useEffect(() => {
     if (scrollAreaRef.current) {
       const scrollContainer = scrollAreaRef.current.querySelector(
-        "[data-radix-scroll-area-viewport]",
+        "[data-radix-scroll-area-viewport]"
       );
       if (scrollContainer) {
         scrollContainer.scrollTop = scrollContainer.scrollHeight;
       }
     }
-  }, [messages]);
+  }, [messages, streamingResponse]);
 
-    const formatTimestamp = (date: Date) => {
-        return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      };
+  const formatTimestamp = (date: Date) => {
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
 
-      // Get model icon based on model name
+  // Get model icon based on model name
   const getModelIcon = (modelName: string) => {
     if (modelName.toLowerCase().includes("gpt")) {
       return <Sparkles className="h-3 w-3 text-accent" />;
@@ -99,6 +97,7 @@ export const Messages = ({
       return <Bot className="h-3 w-3 text-accent" />;
     }
   };
+
   const handleSelection = () => {
     const selection = window.getSelection();
     if (!selection || selection.toString().trim() === "") {
@@ -138,26 +137,34 @@ export const Messages = ({
     };
   }, []);
 
-    return (
+  // Text selection handler for context
+  useEffect(() => {
+    document.addEventListener("selectionchange", handleSelection);
+    return () => {
+      document.removeEventListener("selectionchange", handleSelection);
+    };
+  }, []);
+
+  return (
     <div className="flex flex-col h-full bg-background overflow-hidden px-2 sm:px-4">
-        <ScrollArea className="flex-1 p-4 bg-background" ref={scrollAreaRef}>
+      <ScrollArea className="flex-1 p-4 bg-background" ref={scrollAreaRef}>
         <div className="w-full max-w-[900px] mx-auto">
           <div className="space-y-6">
+            {/* Regular messages */}
             {messages.map((message, index) => (
               <div
                 key={message.id}
                 className={cn(
                   "flex message-appear",
                   message.sender === "user" ? "justify-end" : "justify-start",
-                  // Add animation delay based on index
-                  `animation-delay-${index * 10}`,
+                  `animation-delay-${index * 10}`
                 )}
                 style={{ animationDelay: `${index * 0.01}s` }}
               >
                 <div
                   className={cn(
                     "flex gap-3 w-full max-w-[80%]",
-                    message.sender === "user" ? "flex-row-reverse" : "flex-row",
+                    message.sender === "user" ? "flex-row-reverse" : "flex-row"
                   )}
                 >
                   <Avatar
@@ -165,7 +172,7 @@ export const Messages = ({
                       "h-9 w-9 shadow-md",
                       message.sender === "user"
                         ? "bg-accent ring-2 ring-accent/20"
-                        : "bg-card ring-2 ring-border",
+                        : "bg-card ring-2 ring-border"
                     )}
                   >
                     {message.sender === "user" ? (
@@ -180,10 +187,10 @@ export const Messages = ({
                   <div className="flex flex-col">
                     <div
                       className={cn(
-                        "rounded-2xl shadow-md w-full overflow-hidden",
+                        "rounded-2xl shadow-md w-full overflow-hidden p-2",
                         message.sender === "user"
                           ? "bg-accent text-accent-foreground rounded-tr-none"
-                          : "bg-card border border-border/40 text-foreground rounded-tl-none",
+                          : "bg-card border border-border/40 text-foreground rounded-tl-none"
                       )}
                     >
                       <div className="leading-8 break-words text-sm">
@@ -193,9 +200,7 @@ export const Messages = ({
                     <div
                       className={cn(
                         "flex mt-1.5 text-xs text-muted-foreground",
-                        message.sender === "user"
-                          ? "justify-end"
-                          : "justify-start",
+                        message.sender === "user" ? "justify-end" : "justify-start"
                       )}
                     >
                       <span>{formatTimestamp(message.timestamp)}</span>
@@ -208,7 +213,7 @@ export const Messages = ({
                           >
                             <span className="flex items-center gap-1">
                               {getModelIcon(message.model)}
-                              {message.model}
+                              {availableModels.find(m => m.id === message.model)?.name || message.model}
                             </span>
                           </Badge>
                         </>
@@ -219,8 +224,40 @@ export const Messages = ({
               </div>
             ))}
 
-            {/* {isLoading && ( */}
-            {false && (
+            {/* Streaming response - shown when isLoading AND we have a streamingResponse */}
+            {isLoading && streamingResponse && (
+              <div className="flex justify-start message-appear">
+                <div className="flex gap-3 max-w-[80%]">
+                  <Avatar className="h-9 w-9 bg-card ring-2 ring-border shadow-md">
+                    <Bot className="h-5 w-5 text-accent" />
+                    <AvatarFallback>AI</AvatarFallback>
+                  </Avatar>
+                  <div className="flex flex-col">
+                    <div className="rounded-2xl rounded-tl-none p-4 bg-card border border-border/40 text-foreground shadow-md">
+                      <div className="leading-8 break-words text-sm">
+                        <LatexText content={streamingResponse} />
+                      </div>
+                    </div>
+                    <div className="flex mt-1.5 text-xs text-muted-foreground">
+                      <span>{formatTimestamp(new Date())}</span>
+                      <span className="mx-1">•</span>
+                      <Badge
+                        variant="outline"
+                        className="text-xs h-4 px-1.5 bg-accent/20 text-accent-foreground border-accent/30 font-medium"
+                      >
+                        <span className="flex items-center gap-1">
+                          {getModelIcon(currentModel)}
+                          {availableModels.find(m => m.id === currentModel)?.name || currentModel}
+                        </span>
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Loading dots animation - shown when isLoading but NO streamingResponse yet */}
+            {isLoading && !streamingResponse && (
               <div className="flex justify-start message-appear">
                 <div className="flex gap-3 max-w-[80%]">
                   <Avatar className="h-9 w-9 bg-card ring-2 ring-border shadow-md">
@@ -244,7 +281,7 @@ export const Messages = ({
                       >
                         <span className="flex items-center gap-1">
                           {getModelIcon(currentModel)}
-                          {currentModel}
+                          {availableModels.find(m => m.id === currentModel)?.name || currentModel}
                         </span>
                       </Badge>
                     </div>
@@ -255,7 +292,6 @@ export const Messages = ({
           </div>
         </div>
       </ScrollArea>
-            
-        </div>
-    )
-}
+    </div>
+  );
+};

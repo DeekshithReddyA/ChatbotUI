@@ -3,15 +3,19 @@ import 'dotenv/config';
 
 const googleAPIKEY = process.env.GEMINI_API_KEY;
 
-const ai = new GoogleGenAI({ apiKey:  googleAPIKEY });
+const genAI = new GoogleGenAI({ apiKey:  googleAPIKEY });
 
-export async function* generateText(input: string) {
-  const response = await ai.models.generateContentStream({
-    model: "gemini-2.0-flash-lite",
-    contents: input,
-  });
+// export async function* generateText(input: string) {
+//   const response = await ai.models.generateContentStream({
+//     model: "gemini-2.0-flash",
+//     contents: {
+//       role: "user",
+//       parts: [{text: input}]
+//     }
+//   });
 
-  for await (const chunk of response) {
-    yield chunk.text; // yield, not return
-  }
-}
+//   for await (const chunk of response) {
+//     yield chunk.text; 
+//   }
+// }
+export default genAI;
