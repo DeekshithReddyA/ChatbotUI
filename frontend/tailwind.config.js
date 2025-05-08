@@ -40,10 +40,20 @@ export default {
           from : { opacity: 0, transform: "translateY(10px)" }, 
           to: { opacity: 1, transform: "translateY(0)" }
         },
+        "blink" : {
+          "0%, 100%": {opacity: 0},
+          "50%": {opacity: 1},
+        },
+        "pulseScale": {
+          '0%, 100%': { transform: 'scale(0.8)' },
+          '50%': { transform: 'scale(1.2)' },
+        },
       },
       animation:{
         "pulse-glow": "pulse-glow 2s ease-in-out infinite",
         "message-appear": "message-appear 0.3s ease-in-out forwards",
+        "pulse-scale": 'pulseScale 1.5s infinite ease-in-out',
+        "typing-cursor": 'blink 1s infinite step-start',
       }
     },
   },

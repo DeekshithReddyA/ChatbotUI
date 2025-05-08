@@ -105,7 +105,8 @@ app.post('/api/chat', (req, res) => __awaiter(void 0, void 0, void 0, function* 
     var _a, e_1, _b, _c;
     //   const { messages, model = "gemini-2.0-flash" } = req.body;
     const { messages } = req.body;
-    const model = "gemini-2.0-flash"; // Default model
+    console.log(messages);
+    const modelName = "gemini-2.0-flash"; // Default model
     if (!messages || !Array.isArray(messages)) {
         res.status(400).json({ error: 'Invalid messages format' });
         return;
@@ -121,18 +122,16 @@ app.post('/api/chat', (req, res) => __awaiter(void 0, void 0, void 0, function* 
             parts: [{ text: msg.content }]
         }));
         // Select appropriate model based on request
-        let modelName = "gemini-2.0-flash"; // Default model
+        // let modelName = "gemini-2.0-flash"; // Default model
         // Map frontend model names to Gemini model names
-        if (model === "gemini-2.0-flash" || model === "gemini-pro") {
-            modelName = "gemini-2.0-flash";
-        }
-        else if (model === "gemini-ultra") {
-            modelName = "gemini-2.0-pro";
-        }
-        else {
-            // For non-Gemini models, we'll fall back to default
-            console.log(`Model ${model} not available, using ${modelName} instead`);
-        }
+        // if (model === "gemini-2.0-flash" || model === "gemini-pro") {
+        //   modelName = "gemini-2.0-flash";
+        // } else if (model === "gemini-ultra") {
+        //   modelName = "gemini-2.0-pro";
+        // } else {
+        //   // For non-Gemini models, we'll fall back to default
+        //   console.log(`Model ${model} not available, using ${modelName} instead`);
+        // }
         const result = yield google_1.default.models.generateContentStream({
             model: modelName,
             contents: formattedMessages,
