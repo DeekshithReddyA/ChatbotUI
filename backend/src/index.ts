@@ -4,6 +4,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { generateText } from './models/google';
+import { models, modifyPinnedModels } from './models/models';
 
 dotenv.config();
 
@@ -13,11 +14,23 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+
+app.get('/api/models', (req, res) => {
+    res.json(models);
+});
+
+app.post('/api/pinnedModels' , (req, res) => {
+  const { pinnedModels } = req.body;
+  console.log(pinnedModels);
+  const updatedModels = modifyPinnedModels(pinnedModels);
+  res.json(updatedModels);
+})
+
 app.post('/api/chat', async (req, res) => {
 //   const { messages, model = "gemini-2.0-flash" } = req.body;
-    const {messages} = req.body;
+    const {messages, model} = req.body;
 
-    console.log(messages);
+    // console.log(messages);
 
     const modelName = "gemini-2.0-flash"; // Default model
 

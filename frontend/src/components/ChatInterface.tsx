@@ -6,6 +6,8 @@ import ModelSelector from "./ModelSelection";
 import { SSE } from "sse.js";
 import { Menu as MenuIcon } from "lucide-react";
 import { Button } from "./ui/Button";
+import { AIModel } from "../types/AIModel";
+import axios from "axios";
 
 interface Message {
   id: string;
@@ -70,76 +72,14 @@ Reply here to get started, or click the little "chat" icon up top to make a new 
         
       ],
     },
-    {
-      id: "2",
-      title: "Travel Planning",
-      lastMessage: "Thanks for the recommendations!",
-      timestamp: new Date("2023-06-14T09:45:00"),
-      model: "claude-3",
-      messages: [
-        {
-          id: "2-1",
-          content: "I'm planning a trip to Japan. Any recommendations?",
-          sender: "user",
-          timestamp: new Date("2023-06-14T09:42:00"),
-        },
-        {
-          id: "2-2",
-          content:
-            "Japan is a wonderful destination! Here are some recommendations:\n\n🏙️ **Tokyo**\n- Explore Shibuya and see the famous crossing\n- Visit Senso-ji Temple in Asakusa\n- Experience the vibrant nightlife in Shinjuku\n\n🏯 **Kyoto**\n- See the iconic Fushimi Inari Shrine with thousands of torii gates\n- Visit the bamboo forest in Arashiyama\n- Experience a traditional tea ceremony\n\n🍜 **Must-try foods**\n- Fresh sushi at Tsukiji Outer Market\n- Authentic ramen in local shops\n- Takoyaki (octopus balls) as street food\n- Okonomiyaki (savory pancake)\n\nWould you like more specific recommendations based on your interests?",
-          sender: "ai",
-          timestamp: new Date("2023-06-14T09:44:00"),
-          model: "claude-3",
-        },
-        {
-          id: "2-3",
-          content: "Thanks for the recommendations!",
-          sender: "user",
-          timestamp: new Date("2023-06-14T09:45:00"),
-        },
-      ],
-    },
-    {
-      id: "3",
-      title: "Learning React Hooks",
-      lastMessage: "I'll try implementing useContext in my app.",
-      timestamp: new Date("2023-06-13T16:45:00"),
-      model: "gpt-3.5-turbo",
-      messages: [
-        {
-          id: "3-1",
-          content: "Can you explain React hooks to me? I'm new to React.",
-          sender: "user",
-          timestamp: new Date("2023-06-13T16:40:00"),
-        },
-        {
-          id: "3-2",
-          content:
-            "React Hooks are functions that let you use state and other React features without writing a class component. Here are the most common hooks:\n\n**useState**\nManages state in functional components:\n```jsx\nconst [count, setCount] = useState(0);\n```\n\n**useEffect**\nHandles side effects like data fetching, subscriptions, or DOM manipulation:\n```jsx\nuseEffect(() => {\n  document.title = `You clicked ${count} times`;\n}, [count]); // Only re-run if count changes\n```\n\n**useContext**\nAccesses context without nesting components:\n```jsx\nconst theme = useContext(ThemeContext);\n```\n\n**useRef**\nCreates a mutable reference that persists across renders:\n```jsx\nconst inputRef = useRef(null);\n```\n\nWould you like me to explain any specific hook in more detail?",
-          sender: "ai",
-          timestamp: new Date("2023-06-13T16:43:00"),
-          model: "gpt-3.5-turbo",
-        },
-        {
-          id: "3-3",
-          content: "I'll try implementing useContext in my app.",
-          sender: "user",
-          timestamp: new Date("2023-06-13T16:45:00"),
-        },
-      ],
-    },
   ]);
+
 
   const [activeConversation, setActiveConversation] = useState<string>(
     conversations[0].id,
   );
-  const [availableModels, setAvailableModels] = useState([
-    { id: "gpt-4", name: "GPT-4" },
-    { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo" },
-    { id: "claude-3", name: "Claude 3" },
-    { id: "llama-3", name: "Llama 3" },
-    { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash" },
-  ]);
+
+  const [models, setModels] = useState<AIModel[]>([]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [selectedText, setSelectedText] = useState<string>("");
@@ -170,6 +110,15 @@ Reply here to get started, or click the little "chat" icon up top to make a new 
     
     // Clean up
     return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
+
+  useEffect(() => {
+    const fetchModels = async () => {
+      const response = await axios.get('http://localhost:3000/api/models');
+      const data = response.data;
+      setModels(data);
+    };
+    fetchModels();
   }, []);
 
   // Find the current active conversation
@@ -403,13 +352,15 @@ Reply here to get started, or click the little "chat" icon up top to make a new 
             <MenuIcon size={20} />
           </Button>
           <ModelSelector 
+            models={models}
+            setModels={setModels}
           />
         </div>
         <div className="flex-1 overflow-hidden mb-4">
           <Messages
             messages={currentConversation.messages}
             currentModel={currentConversation.model}
-            availableModels={availableModels}
+            models={models}
             onModelChange={handleModelChange}
             isLoading={isLoading}
             selectedText={selectedText}

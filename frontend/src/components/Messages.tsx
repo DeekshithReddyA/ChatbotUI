@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { cn } from "../lib/utils";
 import { ScrollArea } from "./ui/ScrollArea";
-import { Bot, User, Sparkles, Cpu } from "lucide-react";
-import { Avatar, AvatarFallback } from "./ui/Avatar";
-import { Badge } from "./ui/Badge";
+import { Bot, Sparkles, Cpu } from "lucide-react";
 import LatexText from "./Latex";
 import { AnimatePresence, motion } from "framer-motion";
+import { AIModel } from "../types/AIModel";
 
 interface Message {
   id: string;
@@ -20,7 +19,7 @@ interface MessageThreadProps {
   currentModel?: string;
   onModelChange?: (model: string) => void;
   isLoading?: boolean;
-  availableModels?: Array<{ id: string; name: string }>;
+  models?: AIModel[];
   onReplyWithContext?: (selectedText: string) => void;
   selectedText?: string;
   setSelectedText?: (text: string) => void;
@@ -58,7 +57,7 @@ export const Messages = ({
   currentModel = "gpt-4",
   onModelChange = () => {},
   isLoading = false,
-  availableModels = [],
+  models = [],
   selectedText = "",
   setSelectedText = () => {},
   onReplyWithContext = () => {},
@@ -142,7 +141,7 @@ export const Messages = ({
   const getModelIcon = (modelName: string) =>
     modelName.toLowerCase().includes("gpt") ? <Sparkles className="h-3 w-3 text-accent" /> :
     modelName.toLowerCase().includes("claude") ? <Cpu className="h-3 w-3 text-accent" /> :
-    <Bot className="h-3 w-3 text-accent" />;
+    <span />;
 
   const handleSelection = () => {
     // Only process selection if it's within the messages container
@@ -241,7 +240,10 @@ export const Messages = ({
                     </div>
                   </div>
                   <div className={cn("flex mt-1.5 text-xs text-muted-foreground", msg.sender === "user" ? "justify-end" : "justify-start")}>
-                    <span>{formatTimestamp(msg.timestamp)}</span>
+                    <span className="flex items-center gap-1">
+                              {getModelIcon(msg.model || "")}
+                              {models.find(m => m.id === msg.model)?.name || msg.model}
+                    </span>
                   </div>
                 </div>
               </motion.div>
@@ -270,9 +272,6 @@ export const Messages = ({
                     </>;
                   })()}
                   <span className="cursor-animation inline-block w-1 h-4 align-middle" />
-                </div>
-                <div className="flex mt-1.5 text-xs text-muted-foreground">
-                  <span>{new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                 </div>
               </div>
             </motion.div>

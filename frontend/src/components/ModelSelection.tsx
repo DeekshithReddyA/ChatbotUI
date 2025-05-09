@@ -1,109 +1,16 @@
 import React, { useState, useEffect, useRef } from "react";
-import { ChevronDown, ChevronUp, Search, Globe, FileText, Brain, Zap, Eye, Pin, Info } from "lucide-react";
+import { ChevronDown, ChevronUp, Search, Globe, FileText, Brain, Eye, Pin } from "lucide-react";
 import { cn } from "../lib/utils";
+import { AIModel, Capability, ModelSelectorProps } from "../types/AIModel";
+import { ModelTooltip } from "./ModelDescription";
+import ChatGPT from '../assets/ChatGPT.svg';
+import Claude from '../assets/Claude.svg';
+import Gemini from '../assets/Gemini.svg';
+import axios from "axios";
 
-// Model capabilities
-type Capability = "vision" | "search" | "pdfs" | "reasoning" | "effort";
-
-// Model types/families
-type ModelFamily = "gemini" | "gpt" | "claude" | "other";
-
-// Interface for model objects
-interface AIModel {
-  id: string;
-  name: string;
-  family: ModelFamily;
-  isPinned?: boolean;
-  isPro?: boolean;
-  isLocked?: boolean;
-  capabilities: Capability[];
-  icon?: React.ReactNode;
-  description: string;
-  tokens?: number;
-  speed?: "Fast" | "Balanced" | "Thorough";
-}
-
-// Tooltip component
-interface TooltipProps {
-  model: AIModel;
-  isVisible: boolean;
-  position: { x: number; y: number };
-  isMobile: boolean;
-}
-
-const ModelTooltip: React.FC<TooltipProps> = ({ model, isVisible, position, isMobile }) => {
-  if (!isVisible) return null;
-  
-  // For mobile, show tooltip at a fixed position
-  if (isMobile) {
-    return (
-      <div 
-        className="fixed inset-x-4 bottom-20 z-[100] bg-card border border-border/40 rounded-lg shadow-lg p-3 text-sm"
-        style={{ 
-          opacity: isVisible ? 1 : 0,
-          transition: 'opacity 0.2s ease-in-out'
-        }}
-      >
-        <div className="flex items-center mb-2">
-          <div className="mr-2">{model.icon}</div>
-          <div className="font-medium">{model.name}</div>
-        </div>
-        <p className="text-muted-foreground mb-2">{model.description}</p>
-        <div className="flex justify-between text-xs border-t border-border/40 pt-2 mt-2">
-          {model.speed && (
-            <div className="flex items-center">
-              <Zap size={12} className="mr-1 text-accent" />
-              <span>{model.speed}</span>
-            </div>
-          )}
-          {model.tokens && (
-            <div className="flex items-center">
-              <Info size={12} className="mr-1 text-accent" />
-              <span>{model.tokens.toLocaleString()} tokens</span>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-  
-  // For desktop, show tooltip next to the model
-  return (
-    <div 
-      className="fixed z-[100] bg-card border border-border/40 rounded-lg shadow-lg p-3 w-72 text-sm"
-      style={{ 
-        top: `${position.y}px`,
-        left: `${position.x}px`,
-        opacity: isVisible ? 1 : 0,
-        transition: 'opacity 0.2s ease-in-out'
-      }}
-    >
-      <div className="flex items-center mb-2">
-        <div className="mr-2">{model.icon}</div>
-        <div className="font-medium">{model.name}</div>
-      </div>
-      <p className="text-muted-foreground mb-2">{model.description}</p>
-      <div className="flex justify-between text-xs border-t border-border/40 pt-2 mt-2">
-        {model.speed && (
-          <div className="flex items-center">
-            <Zap size={12} className="mr-1 text-accent" />
-            <span>{model.speed}</span>
-          </div>
-        )}
-        {model.tokens && (
-          <div className="flex items-center">
-            <Info size={12} className="mr-1 text-accent" />
-            <span>{model.tokens.toLocaleString()} tokens</span>
-          </div>
-        )}
-      </div>
-      <div className="absolute left-0 top-1/2 w-2 h-2 bg-card border-l border-b border-border/40 transform -translate-x-1/2 -translate-y-1/2 rotate-45"></div>
-    </div>
-  );
-};
 
 // Component for model selector dropdown
-const ModelSelector: React.FC = () => {
+const ModelSelector: React.FC<ModelSelectorProps> = ({models, setModels}) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [gridView, setGridView] = useState(true);
   const [selectedModel, setSelectedModel] = useState<AIModel | null>(null);
@@ -112,112 +19,7 @@ const ModelSelector: React.FC = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [hoveredModel, setHoveredModel] = useState<AIModel | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
-  const [models, setModels] = useState<AIModel[]>([
-    {
-      id: "gemini-2-flash",
-      name: "Gemini 2.0 Flash",
-      family: "gemini",
-      isPinned: true,
-      capabilities: ["vision", "search", "pdfs"],
-      icon: <span className="text-accent">✧</span>,
-      description: "Google's fastest model optimized for quick responses and real-time interactions. Great for chat and creative tasks.",
-      tokens: 32000,
-      speed: "Fast",
-    },
-    {
-      id: "gemini-2-flash-lite",
-      name: "Gemini 2.0 Flash Lite",
-      family: "gemini",
-      isPinned: false,
-      capabilities: ["vision", "pdfs"],
-      icon: <span className="text-accent">✧</span>,
-      description: "Lightweight version of Gemini Flash with reduced parameters but faster inference. Perfect for mobile devices.",
-      tokens: 16000,
-      speed: "Fast",
-    },
-    {
-      id: "gemini-2.5-pro",
-      name: "Gemini 2.5 Pro",
-      family: "gemini",
-      isPinned: false,
-      isLocked: true,
-      capabilities: ["vision", "search", "pdfs", "reasoning"],
-      icon: <span className="text-accent">✧</span>,
-      description: "Google's most advanced model with superior reasoning and multimodal capabilities. Handles complex tasks with ease.",
-      tokens: 128000,
-      speed: "Balanced",
-    },
-    {
-      id: "gpt-4o-mini",
-      name: "GPT-4o-mini",
-      family: "gpt",
-      isPinned: false,
-      capabilities: ["vision"],
-      icon: <span className="text-accent">⚄</span>,
-      description: "Smaller version of GPT-4o with excellent performance-to-cost ratio. Great for everyday tasks and creative writing.",
-      tokens: 16000,
-      speed: "Fast",
-    },
-    {
-      id: "gpt-4o",
-      name: "GPT-4o",
-      family: "gpt",
-      isPinned: false,
-      isLocked: true,
-      capabilities: ["vision"],
-      icon: <span className="text-accent">⚄</span>,
-      description: "OpenAI's flagship multimodal model with exceptional reasoning and vision capabilities. Best for complex tasks.",
-      tokens: 128000,
-      speed: "Balanced",
-    },
-    {
-      id: "gpt-4.1",
-      name: "GPT-4.1",
-      family: "gpt",
-      isPinned: false,
-      isLocked: true,
-      capabilities: ["vision"],
-      icon: <span className="text-accent">⚄</span>,
-      description: "Latest iteration of GPT-4 with improved knowledge cutoff and enhanced reasoning capabilities.",
-      tokens: 128000,
-      speed: "Thorough",
-    },
-    {
-      id: "gpt-4.1-mini",
-      name: "GPT-4.1 Mini",
-      family: "gpt",
-      isPinned: false,
-      capabilities: ["vision"],
-      icon: <span className="text-accent">⚄</span>,
-      description: "Compact version of GPT-4.1 with reduced parameters but maintaining strong reasoning abilities.",
-      tokens: 32000,
-      speed: "Fast",
-    },
-    {
-      id: "gpt-4.1-nano",
-      name: "GPT-4.1 Nano",
-      family: "gpt",
-      isPinned: false,
-      capabilities: ["vision"],
-      icon: <span className="text-accent">⚄</span>,
-      description: "Ultra-lightweight GPT model designed for edge devices and mobile applications with minimal latency.",
-      tokens: 8000,
-      speed: "Fast",
-    },
-    {
-      id: "claude-3.5-sonnet",
-      name: "Claude 3.5 Sonnet",
-      family: "claude",
-      isPinned: false,
-      isPro: true,
-      isLocked: true,
-      capabilities: ["vision", "pdfs", "reasoning"],
-      icon: <span className="text-accent">AI</span>,
-      description: "Anthropic's latest model with exceptional writing quality and nuanced understanding of complex topics.",
-      tokens: 200000,
-      speed: "Thorough",
-    },
-  ]);
+
   
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -250,12 +52,23 @@ const ModelSelector: React.FC = () => {
     };
   }, []);
 
+  useEffect(() =>{
+    if (!isExpanded) {
+      axios.post('http://localhost:3000/api/pinnedModels', {
+        pinnedModels: models.filter(model => model.isPinned).map(model => model.id)
+      }).then(response => {
+        console.log(response.data);
+      });
+    }
+  }, [isExpanded]);
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsExpanded(false);
-        setHoveredModel(null); // Also close any open tooltips
+        setHoveredModel(null);
+         // Also close any open tooltips
       }
     };
 
@@ -321,8 +134,8 @@ const ModelSelector: React.FC = () => {
   // Toggle pin status for a model
   const togglePinModel = (modelId: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent triggering model selection
-    setModels(prevModels => 
-      prevModels.map(model => 
+    setModels((prevModels: AIModel[])=> 
+      prevModels.map((model: AIModel) => 
         model.id === modelId 
           ? { ...model, isPinned: !model.isPinned } 
           : model
@@ -437,6 +250,19 @@ const ModelSelector: React.FC = () => {
     );
   };
 
+  const getModelIcon = (icon: string) => {
+    switch (icon) {
+      case "Gemini":
+        return Gemini;
+      case "ChatGPT":
+        return ChatGPT;
+      case "Claude":
+        return Claude;
+      default:
+        return Gemini;
+    }
+  }
+
   // Render a model in list view
   const renderModelListItem = (model: AIModel) => {
     return (
@@ -450,7 +276,9 @@ const ModelSelector: React.FC = () => {
         onMouseLeave={handleMouseLeave}
       >
         <div className="flex items-center">
-          <div className="mr-2">{model.icon}</div>
+          <div className="mr-2 text-white">
+            <img src={getModelIcon(model.icon || "ai")} alt={model.name} className="w-6 h-6" />
+          </div>
           <span className={`${model.isLocked ? 'text-gray-500' : 'text-foreground'} truncate`}>
             {model.name}
           </span>
@@ -502,7 +330,9 @@ const ModelSelector: React.FC = () => {
           <Pin size={14} className={model.isPinned ? "fill-accent" : ""} />
         </button>
         <div className="flex justify-center mb-2">
-          <div className="text-xl">{model.icon}</div>
+          <div className="text-xl">
+            <img src={getModelIcon(model.icon || "")} alt={model.name} className="w-7 h-7" />
+          </div>
         </div>
         <div className={`text-center text-sm ${model.isLocked ? 'text-gray-500' : 'text-foreground'} truncate`}>
           {model.name}
