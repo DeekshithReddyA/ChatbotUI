@@ -28,11 +28,46 @@ interface TooltipProps {
   model: AIModel;
   isVisible: boolean;
   position: { x: number; y: number };
+  isMobile: boolean;
 }
 
-const ModelTooltip: React.FC<TooltipProps> = ({ model, isVisible, position }) => {
+const ModelTooltip: React.FC<TooltipProps> = ({ model, isVisible, position, isMobile }) => {
   if (!isVisible) return null;
   
+  // For mobile, show tooltip at a fixed position
+  if (isMobile) {
+    return (
+      <div 
+        className="fixed inset-x-4 bottom-20 z-[100] bg-card border border-border/40 rounded-lg shadow-lg p-3 text-sm"
+        style={{ 
+          opacity: isVisible ? 1 : 0,
+          transition: 'opacity 0.2s ease-in-out'
+        }}
+      >
+        <div className="flex items-center mb-2">
+          <div className="mr-2">{model.icon}</div>
+          <div className="font-medium">{model.name}</div>
+        </div>
+        <p className="text-muted-foreground mb-2">{model.description}</p>
+        <div className="flex justify-between text-xs border-t border-border/40 pt-2 mt-2">
+          {model.speed && (
+            <div className="flex items-center">
+              <Zap size={12} className="mr-1 text-accent" />
+              <span>{model.speed}</span>
+            </div>
+          )}
+          {model.tokens && (
+            <div className="flex items-center">
+              <Info size={12} className="mr-1 text-accent" />
+              <span>{model.tokens.toLocaleString()} tokens</span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+  
+  // For desktop, show tooltip next to the model
   return (
     <div 
       className="fixed z-[100] bg-card border border-border/40 rounded-lg shadow-lg p-3 w-72 text-sm"
@@ -74,6 +109,7 @@ const ModelSelector: React.FC = () => {
   const [selectedModel, setSelectedModel] = useState<AIModel | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [screenSize, setScreenSize] = useState<"small" | "medium" | "large">("large");
+  const [isMobile, setIsMobile] = useState(false);
   const [hoveredModel, setHoveredModel] = useState<AIModel | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const [models, setModels] = useState<AIModel[]>([
@@ -188,9 +224,14 @@ const ModelSelector: React.FC = () => {
   // Update screen size based on window width
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth < 640) {
+      const width = window.innerWidth;
+      setIsMobile(width < 640);
+      
+      if (width < 640) {
         setScreenSize("small");
-      } else if (window.innerWidth < 1024) {
+        // Default to list view on mobile for better UX
+        setGridView(false);
+      } else if (width < 1024) {
         setScreenSize("medium");
       } else {
         setScreenSize("large");
@@ -214,6 +255,7 @@ const ModelSelector: React.FC = () => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsExpanded(false);
+        setHoveredModel(null); // Also close any open tooltips
       }
     };
 
@@ -225,19 +267,55 @@ const ModelSelector: React.FC = () => {
 
   // Handle model hover
   const handleModelHover = (model: AIModel, event: React.MouseEvent) => {
+    if (isMobile) {
+      // On mobile, just set the hovered model without positioning
+      setHoveredModel(model);
+      return;
+    }
+    
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
     setHoveredModel(model);
     
-    // Position tooltip to the right of the model card
-    setTooltipPosition({ 
-      x: rect.right + 15, // 15px to the right of the element
-      y: rect.top + rect.height / 2 // Centered vertically
-    });
+    // Check if there's enough space on the right
+    const spaceOnRight = window.innerWidth - rect.right;
+    
+    if (spaceOnRight < 300) {
+      // Not enough space on right, position to the left
+      setTooltipPosition({ 
+        x: rect.left - 15,
+        y: rect.top + rect.height / 2
+      });
+    } else {
+      // Position to the right
+      setTooltipPosition({ 
+        x: rect.right + 15,
+        y: rect.top + rect.height / 2
+      });
+    }
+  };
+
+  // Handle model tap on mobile
+  const handleModelTap = (model: AIModel) => {
+    if (isMobile) {
+      if (hoveredModel && hoveredModel.id === model.id) {
+        // If tapping the same model again, select it and close tooltip
+        handleSelectModel(model);
+        setHoveredModel(null);
+      } else {
+        // First tap shows tooltip
+        setHoveredModel(model);
+      }
+    } else {
+      // On desktop, directly select the model
+      handleSelectModel(model);
+    }
   };
 
   // Handle mouse leave
   const handleMouseLeave = () => {
-    setHoveredModel(null);
+    if (!isMobile) {
+      setHoveredModel(null);
+    }
   };
 
   // Toggle pin status for a model
@@ -250,6 +328,11 @@ const ModelSelector: React.FC = () => {
           : model
       )
     );
+    
+    // On mobile, also close any open tooltip
+    if (isMobile) {
+      setHoveredModel(null);
+    }
   };
 
   // Filter models based on search query
@@ -262,18 +345,20 @@ const ModelSelector: React.FC = () => {
   const unpinnedModels = filteredModels.filter(model => !model.isPinned);
   
   // Get models to display based on expanded state
-  const displayedUnpinnedModels = isExpanded ? unpinnedModels : unpinnedModels.slice(0, 6);
+  const displayedUnpinnedModels = isExpanded ? unpinnedModels : unpinnedModels.slice(0, isMobile ? 4 : 6);
 
   // Toggle expansion
   const toggleExpansion = () => {
     setIsExpanded(!isExpanded);
+    // Close any open tooltip when expanding/collapsing
+    setHoveredModel(null);
   };
 
   // Select a model
   const handleSelectModel = (model: AIModel) => {
     setSelectedModel(model);
     // On mobile, close dropdown after selection
-    if (screenSize === "small") {
+    if (isMobile) {
       setIsExpanded(false);
     }
   };
@@ -282,7 +367,7 @@ const ModelSelector: React.FC = () => {
   const getGridColumns = () => {
     switch (screenSize) {
       case "small":
-        return "grid-cols-2";
+        return "grid-cols-1";
       case "medium":
         return "grid-cols-2";
       case "large":
@@ -316,26 +401,36 @@ const ModelSelector: React.FC = () => {
 
   // Render capability icons for a model
   const renderCapabilityIcons = (capabilities: Capability[]) => {
+    // For mobile, limit to 2 icons to save space
+    const displayCapabilities = isMobile 
+      ? capabilities.slice(0, 2) 
+      : capabilities;
+      
     return (
       <div className="flex gap-1">
-        {capabilities.includes("vision") && (
+        {displayCapabilities.includes("vision") && (
           <div className="bg-accent/20 p-1 rounded-md">
-            <Eye size={16} className="text-accent" />
+            <Eye size={isMobile ? 14 : 16} className="text-accent" />
           </div>
         )}
-        {capabilities.includes("search") && (
+        {displayCapabilities.includes("search") && (
           <div className="bg-accent/20 p-1 rounded-md">
-            <Globe size={16} className="text-accent" />
+            <Globe size={isMobile ? 14 : 16} className="text-accent" />
           </div>
         )}
-        {capabilities.includes("pdfs") && (
+        {displayCapabilities.includes("pdfs") && (
           <div className="bg-accent/20 p-1 rounded-md">
-            <FileText size={16} className="text-accent" />
+            <FileText size={isMobile ? 14 : 16} className="text-accent" />
           </div>
         )}
-        {capabilities.includes("reasoning") && (
+        {displayCapabilities.includes("reasoning") && (
           <div className="bg-accent/20 p-1 rounded-md">
-            <Brain size={16} className="text-accent" />
+            <Brain size={isMobile ? 14 : 16} className="text-accent" />
+          </div>
+        )}
+        {isMobile && capabilities.length > 2 && (
+          <div className="bg-accent/20 p-1 rounded-md flex items-center justify-center">
+            <span className="text-accent text-xs">+{capabilities.length - 2}</span>
           </div>
         )}
       </div>
@@ -349,8 +444,8 @@ const ModelSelector: React.FC = () => {
         key={model.id}
         className={`flex items-center justify-between py-2 pl-2 pr-4 hover:bg-accent/10 rounded-md cursor-pointer relative ${
           selectedModel?.id === model.id ? 'bg-accent/10 ring-1 ring-accent/30' : ''
-        }`}
-        onClick={() => handleSelectModel(model)}
+        } ${hoveredModel?.id === model.id && isMobile ? 'bg-accent/10' : ''}`}
+        onClick={() => handleModelTap(model)}
         onMouseEnter={(e) => handleModelHover(model, e)}
         onMouseLeave={handleMouseLeave}
       >
@@ -391,8 +486,8 @@ const ModelSelector: React.FC = () => {
         key={model.id}
         className={`bg-card border border-border/40 p-3 rounded-lg cursor-pointer hover:bg-accent/5 relative ${
           selectedModel?.id === model.id ? 'ring-1 ring-accent' : ''
-        }`}
-        onClick={() => handleSelectModel(model)}
+        } ${hoveredModel?.id === model.id && isMobile ? 'ring-1 ring-accent/50' : ''}`}
+        onClick={() => handleModelTap(model)}
         onMouseEnter={(e) => handleModelHover(model, e)}
         onMouseLeave={handleMouseLeave}
       >
@@ -448,6 +543,7 @@ const ModelSelector: React.FC = () => {
           model={hoveredModel} 
           isVisible={!!hoveredModel} 
           position={tooltipPosition} 
+          isMobile={isMobile}
         />
       )}
 
