@@ -95,7 +95,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
-const google_1 = __importDefault(require("./models/google"));
+const google_1 = require("./models/google");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3000;
@@ -132,16 +132,12 @@ app.post('/api/chat', (req, res) => __awaiter(void 0, void 0, void 0, function* 
         //   // For non-Gemini models, we'll fall back to default
         //   console.log(`Model ${model} not available, using ${modelName} instead`);
         // }
-        const result = yield google_1.default.models.generateContentStream({
-            model: modelName,
-            contents: formattedMessages,
-        });
+        const textStream = (0, google_1.generateText)(modelName, formattedMessages);
         try {
-            for (var _d = true, result_1 = __asyncValues(result), result_1_1; result_1_1 = yield result_1.next(), _a = result_1_1.done, !_a; _d = true) {
-                _c = result_1_1.value;
+            for (var _d = true, textStream_1 = __asyncValues(textStream), textStream_1_1; textStream_1_1 = yield textStream_1.next(), _a = textStream_1_1.done, !_a; _d = true) {
+                _c = textStream_1_1.value;
                 _d = false;
-                const chunk = _c;
-                const text = chunk.text;
+                const text = _c;
                 if (text) {
                     res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`);
                 }
@@ -150,7 +146,7 @@ app.post('/api/chat', (req, res) => __awaiter(void 0, void 0, void 0, function* 
         catch (e_1_1) { e_1 = { error: e_1_1 }; }
         finally {
             try {
-                if (!_d && !_a && (_b = result_1.return)) yield _b.call(result_1);
+                if (!_d && !_a && (_b = textStream_1.return)) yield _b.call(textStream_1);
             }
             finally { if (e_1) throw e_1.error; }
         }
