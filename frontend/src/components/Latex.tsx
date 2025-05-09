@@ -22,7 +22,7 @@ const LatexText: React.FC<PreviewProps> = ({ content }: {content: string}) => {
   };
   
   return (
-    <div className="p-4 preview-content preview-fade w-full overflow-hidden">
+    <div className="preview-content preview-fade w-full overflow-hidden">
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}
@@ -33,7 +33,7 @@ const LatexText: React.FC<PreviewProps> = ({ content }: {content: string}) => {
             
             if (match) {
               return (
-                <div className="relative group max-h-[500px] overflow-auto">
+                <div className="relative group">
                   <div className='sticky top-0 right-8 float-right z-10'>
                   <button
                     onClick={() => handleCopyCode(code)}
@@ -47,19 +47,21 @@ const LatexText: React.FC<PreviewProps> = ({ content }: {content: string}) => {
                     )}
                   </button>
                   </div>
-                  <SyntaxHighlighter 
-                    style={vscDarkPlus as any}
-                    language={match[1]}
-                    showLineNumbers={true}
-                    wrapLines={false}
-                    customStyle={{ 
-                      margin: 0,
-                      overflow: 'auto',
-                      maxWidth: '100%'
-                    }}
-                    >
-                    {code}
-                  </SyntaxHighlighter>
+                  <div className="max-h-[500px] overflow-auto">
+                    <SyntaxHighlighter 
+                      style={vscDarkPlus as any}
+                      language={match[1]}
+                      showLineNumbers={true}
+                      wrapLines={false}
+                      customStyle={{ 
+                        margin: 0,
+                        overflow: 'visible',
+                        maxWidth: '100%'
+                      }}
+                      >
+                      {code}
+                    </SyntaxHighlighter>
+                  </div>
                 </div>
               );
             }

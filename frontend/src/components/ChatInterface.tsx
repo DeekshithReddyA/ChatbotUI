@@ -4,6 +4,8 @@ import MessageInput from "./MessageInput";
 import { Messages } from "./Messages";
 import ModelSelector from "./ModelSelection";
 import { SSE } from "sse.js";
+import { Menu as MenuIcon } from "lucide-react";
+import { Button } from "./ui/Button";
 
 interface Message {
   id: string;
@@ -45,7 +47,7 @@ export const ChatInterface = () => {
             `### TARS Chat is the all in one AI Chat. 
 
 1. **Blazing Fast, Model-Packed.**\n 
-    We’re not just fast — we’re **2x faster than ChatGPT**, **10x faster than DeepSeek**. With **20+ models** (Claude, DeepSeek, ChatGPT-4o, and more), you’ll always have the right AI for the job — and new ones arrive *within hours* of launch.
+    We're not just fast — we're **2x faster than ChatGPT**, **10x faster than DeepSeek**. With **20+ models** (Claude, DeepSeek, ChatGPT-4o, and more), you'll always have the right AI for the job — and new ones arrive *within hours* of launch.
 
 2. **Flexible Payments.**\n
    Tired of rigid subscriptions? TARS Chat lets you choose *your* way to pay.\n
@@ -146,6 +148,29 @@ Reply here to get started, or click the little "chat" icon up top to make a new 
   // Stream control state
   const [streamPaused, setStreamPaused] = useState(false);
   const streamSource = useRef<SSE | null>(null);
+
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  // Check screen size on initial render and when window resizes
+  useEffect(() => {
+    const checkScreenSize = () => {
+      // Close sidebar by default on mobile screens
+      if (window.innerWidth < 768) {
+        setIsSidebarOpen(false);
+      } else {
+        setIsSidebarOpen(true);
+      }
+    };
+    
+    // Set initial state
+    checkScreenSize();
+    
+    // Add listener for window resize
+    window.addEventListener('resize', checkScreenSize);
+    
+    // Clean up
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
 
   // Find the current active conversation
   const currentConversation =
@@ -333,22 +358,54 @@ Reply here to get started, or click the little "chat" icon up top to make a new 
 
   // Handle reply with selected text context
   const handleReplyWithContext = (text: string) => {
-    // Implement how you want to use the selected text
-    // For example, you could:
-    const contextPrompt = `Regarding this text: "${text}"\n\n`;
-    // And then focus the input or auto-fill it with the context
-    console.log("Replying with context:", contextPrompt);
+    if (!text.trim()) return;
+    
+    // Create a contextual prompt with the selected text
+    const contextPrompt = `Regarding this: "${text}"\n\n`;
+    
+    // Clear the selected text after using it
+    setSelectedText("");
+    
+    // Focus the input or automatically start a reply with the context
+    handleSendMessage(contextPrompt);
+  };
+
+  const toggleSidebar = () => {
+    setIsSidebarOpen(!isSidebarOpen);
   };
 
   return (
     <div className="flex h-screen bg-background text-foreground">
-      <ConversationSidebar 
-        conversations={conversations}
-      />
+      {/* Overlay for mobile when sidebar is open */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-10 md:hidden" 
+          onClick={toggleSidebar}
+          aria-hidden="true"
+        />
+      )}
+      <div className={`fixed md:relative z-20 h-full transition-all duration-300 ease-in-out ${isSidebarOpen ? 'w-[260px]' : 'w-0 overflow-hidden'}`}>
+        <ConversationSidebar 
+          conversations={conversations}
+          onNewConversation={() => console.log("New conversation")}
+          onCloseSidebar={toggleSidebar}
+        />
+      </div>
       <div className="flex flex-col flex-1 h-full p-1 bg-background">
-        <div className="flex-1 overflow-hidden mb-4">
+        <div className="flex items-center mb-2">
+          <Button 
+            onClick={toggleSidebar}
+            variant="ghost" 
+            size="icon"
+            className="mr-2 text-muted-foreground hover:text-foreground"
+            aria-label="Toggle sidebar"
+          >
+            <MenuIcon size={20} />
+          </Button>
           <ModelSelector 
           />
+        </div>
+        <div className="flex-1 overflow-hidden mb-4">
           <Messages
             messages={currentConversation.messages}
             currentModel={currentConversation.model}

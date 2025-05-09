@@ -168,7 +168,7 @@ ${message}`
     <div className="w-full bg-background border-t border-border/40 p-4">
       <form
         onSubmit={handleSubmit}
-        className="flex flex-col gap-2 max-w-[800px] mx-auto"
+        className="flex flex-col gap-2 max-w-[900px] mx-auto"
       >
         {/* Context Quote Preview */}
         {contextQuote && (

@@ -4,10 +4,12 @@ import { PlusIcon } from "./icons/PlusIcon"
 import { Button } from "./ui/Button"
 import { Settings2Icon } from "./icons/Settings2Icon";
 import { BadgeIcon } from "./icons/BadgeIcon";
+import { XIcon } from "lucide-react";
 
 interface ConversationSidebarProps {
     conversations?: any[];  // Need to change this type to Conversation[] type        
     onNewConversation?: () => void;
+    onCloseSidebar?: () => void;
 }
 const conversations = [
     {
@@ -47,10 +49,18 @@ export const ConversationSidebar = (props: ConversationSidebarProps) => {
 
 
     return(
-        <div className="flex flex-col h-full w-[260px] border-r border-border/40 bg-card">
-            {/* Logo */}
-            <div className="p-4 bg-gradient-to-r from-accent/15 to-accent/5">
-                TARS AI
+        <div className="flex flex-col h-full w-full border-r border-border/40 bg-card">
+            {/* Logo and Close Button */}
+            <div className="p-4 flex justify-between items-center bg-gradient-to-r from-accent/15 to-accent/5">
+                <div className="font-semibold">TARS AI</div>
+                <Button 
+                    onClick={props.onCloseSidebar}
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 rounded-full md:hidden" 
+                >
+                    <XIcon size={18} />
+                </Button>
             </div>
             {/* New Conversation Button */}
             <div className="mt-1 p-4">
