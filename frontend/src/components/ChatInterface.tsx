@@ -27,6 +27,8 @@ interface Conversation {
 }
 
 export const ChatInterface = () => {
+
+  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   // Mock data for conversations
   const [conversations, setConversations] = useState<Conversation[]>([
     {
@@ -112,9 +114,15 @@ Reply here to get started, or click the little "chat" icon up top to make a new 
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
 
+  // Has to be converted to request models along with the user data.
+  // Next task 
   useEffect(() => {
     const fetchModels = async () => {
-      const response = await axios.get('http://localhost:3000/api/models');
+      const response = await axios.get(`${BACKEND_URL}/api/models`,{
+        headers: {
+          'userId': `${localStorage.getItem('userId')}`,
+        },
+      });
       const data = response.data;
       setModels(data);
     };

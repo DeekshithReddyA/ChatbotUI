@@ -1,1 +1,1 @@
-{"root":["./src/config.ts","./src/index.ts","./src/models/google.ts","./src/models/models.ts"],"version":"5.7.2"}
+{"root":["./src/config.ts","./src/index.ts","./src/models/google.ts","./src/models/models.ts","./src/routes/user.ts"],"version":"5.7.2"}

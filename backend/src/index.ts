@@ -4,8 +4,9 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { generateText } from './models/google';
-import { models, modifyPinnedModels } from './models/models';
-
+import {  modifyPinnedModels } from './models/models';
+import prisma from './config';
+import userRouter from './routes/user';
 
 dotenv.config();
 
@@ -15,17 +16,75 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+app.use('/api/user', userRouter);
 
-app.get('/api/models', (req, res) => {
-    res.json(models);
+// Has to be converted to return these models along with the user data.
+// Have to add another endpoint where only pinned models are returned.
+app.get('/api/models', async (req, res) => {
+  const userId = req.headers['userid'] as string;
+  try{
+
+    const user = await prisma.user.findUnique({
+      where: {
+        userId: userId
+      }
+    });
+
+    const isPro = user?.isPro;
+    const models = await prisma.model.findMany();
+    const pinned = await prisma.userPinnedModels.findUnique({
+      where: {
+        userId: user?.id
+      }
+    });
+    let pinnedModels: string[] = [];
+    if(pinned !== null){
+      pinnedModels = pinned.models;
+      console.log(pinned.models);
+    } 
+    console.log(pinnedModels);
+    const modelsinRender = models.map(model => ({
+      ...model,
+      isLocked: model.isPro && !isPro,
+      isPinned: pinnedModels.includes(model.id)
+    }));
+
+    console.log(modelsinRender);
+    res.status(200).json(modelsinRender);
+    
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ error: 'Internal server error' });
+    return;
+  }
+
+  
 });
 
-app.post('/api/pinnedModels' , (req, res) => {
-  const { pinnedModels } = req.body;
+app.post('/api/pinnedModels' , async (req, res) => {
+  let { pinnedModels } = req.body;
   console.log(pinnedModels);
-  const updatedModels = modifyPinnedModels(pinnedModels);
-  res.json(updatedModels);
-})
+  if (!Array.isArray(pinnedModels)) {
+    res.status(400).json({ error: 'pinnedModels must be an array' });
+    return;
+  } 
+  const userId = req.headers['userid'] as string;
+
+  const user = await prisma.user.update({
+    where: {
+      userId: userId
+    },
+    data: {
+      pinnedModels: {
+        update: {
+          models: pinnedModels
+        }
+      }
+    }
+  });
+
+  res.status(200).json({ message: 'Pinned models updated' });
+});
 
 app.post('/api/chat', async (req, res) => {
 //   const { messages, model = "gemini-2.0-flash" } = req.body;

@@ -24,21 +24,69 @@ const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const google_1 = require("./models/google");
-const models_1 = require("./models/models");
+const config_1 = __importDefault(require("./config"));
+const user_1 = __importDefault(require("./routes/user"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3000;
 app.use((0, cors_1.default)());
 app.use(express_1.default.json());
-app.get('/api/models', (req, res) => {
-    res.json(models_1.models);
-});
-app.post('/api/pinnedModels', (req, res) => {
-    const { pinnedModels } = req.body;
+app.use('/api/user', user_1.default);
+// Has to be converted to return these models along with the user data.
+// Have to add another endpoint where only pinned models are returned.
+app.get('/api/models', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const userId = req.headers['userid'];
+    try {
+        const user = yield config_1.default.user.findUnique({
+            where: {
+                userId: userId
+            }
+        });
+        const isPro = user === null || user === void 0 ? void 0 : user.isPro;
+        const models = yield config_1.default.model.findMany();
+        const pinned = yield config_1.default.userPinnedModels.findUnique({
+            where: {
+                userId: user === null || user === void 0 ? void 0 : user.id
+            }
+        });
+        let pinnedModels = [];
+        if (pinned !== null) {
+            pinnedModels = pinned.models;
+            console.log(pinned.models);
+        }
+        console.log(pinnedModels);
+        const modelsinRender = models.map(model => (Object.assign(Object.assign({}, model), { isLocked: model.isPro && !isPro, isPinned: pinnedModels.includes(model.id) })));
+        console.log(modelsinRender);
+        res.status(200).json(modelsinRender);
+    }
+    catch (error) {
+        console.error("Error:", error);
+        res.status(500).json({ error: 'Internal server error' });
+        return;
+    }
+}));
+app.post('/api/pinnedModels', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    let { pinnedModels } = req.body;
     console.log(pinnedModels);
-    const updatedModels = (0, models_1.modifyPinnedModels)(pinnedModels);
-    res.json(updatedModels);
-});
+    if (!Array.isArray(pinnedModels)) {
+        res.status(400).json({ error: 'pinnedModels must be an array' });
+        return;
+    }
+    const userId = req.headers['userid'];
+    const user = yield config_1.default.user.update({
+        where: {
+            userId: userId
+        },
+        data: {
+            pinnedModels: {
+                update: {
+                    models: pinnedModels
+                }
+            }
+        }
+    });
+    res.status(200).json({ message: 'Pinned models updated' });
+}));
 app.post('/api/chat', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, e_1, _b, _c;
     //   const { messages, model = "gemini-2.0-flash" } = req.body;

@@ -9,6 +9,8 @@ import Gemini from '../assets/Gemini.svg';
 import axios from "axios";
 
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+
 // Component for model selector dropdown
 const ModelSelector: React.FC<ModelSelectorProps> = ({models, setModels}) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -52,10 +54,22 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({models, setModels}) => {
     };
   }, []);
 
+
+  // Have to optimise this call , its called too many times
+  // This function is called only to update the pinned models in the database
+  // The frontend optimistically updates the pinned models in the frontend
+  // While the sessions is open, the pinned models are updated in the frontend
+  // When the dropdown is closed, the pinned models are updated in the database
+  // This is to ensure that the pinned models are always up to date in the database
+  // And the frontend is always in sync with the database when the user refreshes the page
   useEffect(() =>{
     if (!isExpanded) {
-      axios.post('http://localhost:3000/api/pinnedModels', {
+      axios.post(`${BACKEND_URL}/api/pinnedModels`, {
         pinnedModels: models.filter(model => model.isPinned).map(model => model.id)
+      },{
+        headers: {
+          'userid': `${localStorage.getItem('userId')}`
+        }
       }).then(response => {
         console.log(response.data);
       });
