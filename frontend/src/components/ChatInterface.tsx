@@ -276,6 +276,38 @@ Reply here to get started, or click the little "chat" icon up top to make a new 
     }
   };
 
+  const handleNewConversation = () => {
+    const newConversation: Conversation = {
+      id: `${conversations.length + 1}`,
+      title: `New Conversation ${conversations.length + 1}`,
+      lastMessage: "",
+      timestamp: new Date(),
+      messages: [],
+      model: "gpt-4o", // Default model
+    };
+
+    setConversations([newConversation, ...conversations]);
+    setActiveConversation(newConversation.id);
+  };
+
+  // Handle selecting a conversation
+  const handleSelectConversation = (id: string) => {
+    setActiveConversation(id);
+  };
+
+  const handleDeleteConversation = (id: string) => {
+    const filteredConversations = conversations.filter(
+      (conv) => conv.id !== id,
+    );
+    setConversations(filteredConversations);
+    if (
+      activeConversation === id &&
+      filteredConversations.length > 0
+    ) {
+      setActiveConversation(filteredConversations[0].id);
+    }
+  }
+
   // Handle changing the model for the current conversation
   const handleModelChange = (modelId: string) => {
     const updatedConversations = conversations.map((conv) => {
@@ -335,9 +367,18 @@ Reply here to get started, or click the little "chat" icon up top to make a new 
       )}
       <div className={`fixed md:relative z-20 h-full transition-all duration-300 ease-in-out ${isSidebarOpen ? 'w-[260px]' : 'w-0 overflow-hidden'}`}>
         <ConversationSidebar 
-          conversations={conversations}
-          onNewConversation={() => console.log("New conversation")}
+          conversations={conversations.map((conv) => ({
+            id: conv.id,
+            title: conv.title,
+            date: conv.timestamp.toLocaleDateString(),
+            model: conv.model,
+            selected: conv.id === activeConversation
+          }))}
+          onNewConversation={handleNewConversation}
+          onSelectConversation={handleSelectConversation}
           onCloseSidebar={toggleSidebar}
+          onDeleteConversation={handleDeleteConversation}
+          activeConversation={activeConversation}
         />
       </div>
       <div className="flex flex-col flex-1 h-full p-1 bg-background">

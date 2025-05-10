@@ -4,48 +4,20 @@ import { PlusIcon } from "./icons/PlusIcon"
 import { Button } from "./ui/Button"
 import { Settings2Icon } from "./icons/Settings2Icon";
 import { BadgeIcon } from "./icons/BadgeIcon";
-import { XIcon } from "lucide-react";
+import { TrashIcon, XIcon } from "lucide-react";
+import { cn } from "../lib/utils";
+import { useState } from "react";
 
 interface ConversationSidebarProps {
-    conversations?: any[];  // Need to change this type to Conversation[] type        
-    onNewConversation?: () => void;
+    conversations: any[];  // Need to change this type to Conversation[] type        
+    onNewConversation: () => void;
     onCloseSidebar?: () => void;
+    activeConversation: string;
+    onSelectConversation: (id: string) => void;
+    onDeleteConversation: (id: string) => void;
 }
-const conversations = [
-    {
-      id: "1",
-      title: "Understanding Quantum Computing",
-      date: "2023-06-15",
-      model: "GPT-4",
-      selected: true,
-    },
-    {
-      id: "2",
-      title: "Machine Learning Basics",
-      date: "2023-06-14",
-      model: "GPT-3.5",
-    },
-    {
-      id: "3",
-      title: "Web Development Tips",
-      date: "2023-06-13",
-      model: "Claude",
-    },
-    {
-      id: "4",
-      title: "Data Science Projects",
-      date: "2023-06-12",
-      model: "GPT-4",
-    },
-    {
-      id: "5",
-      title: "AI Ethics Discussion",
-      date: "2023-06-11",
-      model: "GPT-3.5",
-    },
-  ];
-
 export const ConversationSidebar = (props: ConversationSidebarProps) => {
+    const [hoveredId, setHoveredId] = useState<string | null>(null);
 
 
     return(
@@ -85,13 +57,49 @@ export const ConversationSidebar = (props: ConversationSidebarProps) => {
             {/* Need to implement this */}
             <ScrollArea className="flex-1 px-2">
                 <div className="space-y-1 py-2">
-                    {conversations.map((conversation) => {
-                        // const isActive = activeConversationId === conversation.id || conversation.selected;
-                        const isActive = false;
+                    {props.conversations.map((conversation) => {
+                        const isActive = props.activeConversation === conversation.id || conversation.selected;
                         return(
-                            <div key={conversation.id} className="">
+                            <div
+                            key={conversation.id}
+                            className={cn(
+                              "group flex items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-all duration-200 hover:bg-accent/20 relative",
+                              isActive
+                                ? "bg-primary/30 text-primary-foreground shadow-sm border-l-2 border-accent font-medium"
+                                : "text-muted-foreground",
+                            )}
+                            onClick={() => props.onSelectConversation(conversation.id)}
+                            onMouseEnter={() => setHoveredId(conversation.id)}
+                            onMouseLeave={() => setHoveredId(null)}
+                          >
+                            <div className="flex flex-col overflow-hidden">
+                              <span
+                                className={cn(
+                                  "truncate font-medium text-sm",
+                                  isActive && "text-accent",
+                                )}
+                              >
                                 {conversation.title}
+                              </span>
+                              <span className="truncate text-xs opacity-70 mt-0.5">
+                                {conversation.model} • {conversation.date}
+                              </span>
                             </div>
+            
+                            {(hoveredId === conversation.id || isActive) && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 opacity-70 hover:opacity-100 hover:text-destructive"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  props.onDeleteConversation(conversation.id);
+                                }}
+                              >
+                                <TrashIcon size={14} />
+                              </Button>
+                            )}
+                          </div>
                         )
                     })}
                 </div>
