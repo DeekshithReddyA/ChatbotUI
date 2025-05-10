@@ -3,7 +3,7 @@ import { ChevronDown, ChevronUp, Search, Globe, FileText, Brain, Eye, Pin } from
 import { cn } from "../lib/utils";
 import { AIModel, Capability, ModelSelectorProps } from "../types/AIModel";
 import { ModelTooltip } from "./ModelDescription";
-import ChatGPT from '../assets/ChatGPT.svg';
+import OpenAI from '../assets/OpenAI.svg';
 import Claude from '../assets/Claude.svg';
 import Gemini from '../assets/Gemini.svg';
 import axios from "axios";
@@ -254,8 +254,8 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({models, setModels}) => {
     switch (icon) {
       case "Gemini":
         return Gemini;
-      case "ChatGPT":
-        return ChatGPT;
+      case "OpenAI":
+        return OpenAI;
       case "Claude":
         return Claude;
       default:
