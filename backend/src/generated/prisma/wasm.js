@@ -136,6 +136,25 @@ exports.Prisma.ConversationScalarFieldEnum = {
   fileUrl: 'fileUrl'
 };
 
+exports.Prisma.ModelScalarFieldEnum = {
+  id: 'id',
+  name: 'name',
+  family: 'family',
+  description: 'description',
+  icon: 'icon',
+  tokens: 'tokens',
+  speed: 'speed',
+  isPro: 'isPro',
+  isLocked: 'isLocked',
+  capabilities: 'capabilities'
+};
+
+exports.Prisma.UserPinnedModelsScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  models: 'models'
+};
+
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -154,7 +173,9 @@ exports.Prisma.NullsOrder = {
 
 exports.Prisma.ModelName = {
   User: 'User',
-  Conversation: 'Conversation'
+  Conversation: 'Conversation',
+  Model: 'Model',
+  userPinnedModels: 'userPinnedModels'
 };
 
 /**

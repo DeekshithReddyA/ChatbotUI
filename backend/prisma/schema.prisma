@@ -15,6 +15,7 @@ model User {
   isPro        Boolean  @default(false)
   messagesLeft Int      @default(5)
   conversations Conversation[]
+  pinnedModels  userPinnedModels?
 }
 
 model Conversation {
@@ -25,4 +26,24 @@ model Conversation {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   fileUrl     String   // points to S3/Supabase file
+}
+
+model Model {
+  id           String   @id
+  name         String
+  family       String
+  description  String
+  icon         String
+  tokens       Int
+  speed        String
+  isPro        Boolean  @default(false)
+  isLocked     Boolean  @default(false)
+  capabilities String[]
+}
+
+model userPinnedModels{
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  models       String[]
 }
