@@ -130,8 +130,6 @@ export const ConversationSidebar = (props: ConversationSidebarProps) => {
                     </div>
                 </Button>
             </div>
-
-
         </div>
     )
 }
