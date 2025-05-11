@@ -15,7 +15,6 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      setLoading(false);
     });
     
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -33,6 +32,7 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
         console.log(message);
       });
     });
+    setLoading(false);
     
     return () => subscription.unsubscribe();
   }, []);

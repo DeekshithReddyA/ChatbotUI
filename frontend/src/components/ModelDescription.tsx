@@ -1,7 +1,23 @@
 import { Info, Zap } from "lucide-react";
 import { TooltipProps } from "../types/AIModel";
+import OpenAI from '../assets/OpenAI.svg';
+import Claude from '../assets/Claude.svg';
+import Gemini from '../assets/Gemini.svg';
 
 export const ModelTooltip: React.FC<TooltipProps> = ({ model, isVisible, position, isMobile }) => {
+
+  const getModelIcon = (icon: string) => {
+    switch (icon) {
+      case "Gemini":
+        return Gemini;
+      case "OpenAI":
+        return OpenAI;
+      case "Claude":
+        return Claude;
+      default:
+        return Gemini;
+    }
+  }
     if (!isVisible) return null;
     
     // For mobile, show tooltip at a fixed position
@@ -15,7 +31,9 @@ export const ModelTooltip: React.FC<TooltipProps> = ({ model, isVisible, positio
           }}
         >
           <div className="flex items-center mb-2">
-            <div className="mr-2">{model.icon}</div>
+            <div className="mr-2">
+              <img src={getModelIcon(model.icon || "")} alt={model.name} className="w-4 h-4" />
+            </div>
             <div className="font-medium">{model.name}</div>
           </div>
           <p className="text-muted-foreground mb-2">{model.description}</p>
@@ -49,7 +67,9 @@ export const ModelTooltip: React.FC<TooltipProps> = ({ model, isVisible, positio
         }}
       >
         <div className="flex items-center mb-2">
-          <div className="mr-2">{model.icon}</div>
+          <div className="mr-2">
+            <img src={getModelIcon(model.icon || "")} alt={model.name} className="w-4 h-4" />
+          </div>
           <div className="font-medium">{model.name}</div>
         </div>
         <p className="text-muted-foreground mb-2">{model.description}</p>

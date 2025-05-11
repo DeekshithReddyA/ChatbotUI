@@ -55,26 +55,36 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({models, setModels}) => {
   }, []);
 
 
-  // Have to optimise this call , its called too many times
-  // This function is called only to update the pinned models in the database
-  // The frontend optimistically updates the pinned models in the frontend
-  // While the sessions is open, the pinned models are updated in the frontend
-  // When the dropdown is closed, the pinned models are updated in the database
-  // This is to ensure that the pinned models are always up to date in the database
-  // And the frontend is always in sync with the database when the user refreshes the page
-  useEffect(() =>{
-    if (!isExpanded) {
-      axios.post(`${BACKEND_URL}/api/pinnedModels`, {
-        pinnedModels: models.filter(model => model.isPinned).map(model => model.id)
-      },{
-        headers: {
-          'userid': `${localStorage.getItem('userId')}`
-        }
-      }).then(response => {
-        console.log(response.data);
-      });
+  // Memoize the call so it only fires when dropdown transitions from open to closed
+  // and only if pinnedModels have changed
+  const prevIsExpandedRef = useRef(isExpanded);
+  const prevPinnedModelsRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    // Only call when dropdown transitions from open (true) to closed (false)
+    if (prevIsExpandedRef.current && !isExpanded) {
+      const currentPinnedModels = models.filter(model => model.isPinned).map(model => model.id);
+      // Compare arrays shallowly (order matters)
+      const prevPinnedModels = prevPinnedModelsRef.current;
+      const arraysAreEqual = (
+        currentPinnedModels.length === prevPinnedModels.length &&
+        currentPinnedModels.every((id, idx) => id === prevPinnedModels[idx])
+      );
+      if (!arraysAreEqual) {
+        axios.post(`${BACKEND_URL}/api/pinnedModels`, {
+          pinnedModels: currentPinnedModels
+        },{
+          headers: {
+            'userid': `${localStorage.getItem('userId')}`
+          }
+        }).then(response => {
+          console.log(response.data);
+        });
+        prevPinnedModelsRef.current = currentPinnedModels;
+      }
     }
-  }, [isExpanded]);
+    prevIsExpandedRef.current = isExpanded;
+  }, [isExpanded, models]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -368,7 +378,9 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({models, setModels}) => {
         <div className="flex items-center overflow-hidden">
           {selectedModel ? (
             <>
-              <span className="mr-2 flex-shrink-0">{selectedModel.icon}</span>
+              <span className="mr-2 flex-shrink-0">
+                <img src={getModelIcon(selectedModel.icon || "")} alt={selectedModel.name} className="w-4 h-4" />
+              </span>
               <span className="truncate">{selectedModel.name}</span>
             </>
           ) : (
