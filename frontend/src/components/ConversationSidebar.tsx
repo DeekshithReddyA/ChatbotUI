@@ -81,16 +81,16 @@ export const ConversationSidebar = (props: ConversationSidebarProps) => {
                               >
                                 {conversation.title}
                               </span>
-                              <span className="truncate text-xs opacity-70 mt-0.5">
+                              {/* <span className="truncate text-xs opacity-70 mt-0.5">
                                 {conversation.model} • {conversation.date}
-                              </span>
+                              </span> */}
                             </div>
             
                             {(hoveredId === conversation.id || isActive) && (
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-6 w-6 opacity-70 hover:opacity-100 hover:text-destructive"
+                                className="h-6 w-6 opacity-100 hover:bg-transparent hover:scale-110 hover:text-red-500 flex items-center justify-center"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   props.onDeleteConversation(conversation.id);

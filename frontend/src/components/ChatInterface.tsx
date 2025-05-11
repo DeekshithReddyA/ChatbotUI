@@ -26,7 +26,14 @@ interface Conversation {
   model: string;
 }
 
-export const ChatInterface = () => {
+interface ChatInterfaceProps {
+  conversations: Conversation[];
+  models: AIModel[];
+  setConversations: any;
+  setModels: any;
+}
+
+export const ChatInterface = (props: ChatInterfaceProps) => {
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   // Mock data for conversations
@@ -284,7 +291,7 @@ Reply here to get started, or click the little "chat" icon up top to make a new 
     }
   };
 
-  const handleNewConversation = () => {
+  const handleNewConversation = async () => {
     const newConversation: Conversation = {
       id: `${conversations.length + 1}`,
       title: `New Conversation ${conversations.length + 1}`,
@@ -296,6 +303,18 @@ Reply here to get started, or click the little "chat" icon up top to make a new 
 
     setConversations([newConversation, ...conversations]);
     setActiveConversation(newConversation.id);
+
+    // Create the conversation in the backend
+    try {
+      const response = await axios.post(`${BACKEND_URL}/api/convo/create`, {
+        userId: localStorage.getItem('userId'),
+        title: newConversation.title,
+      });
+      const data = response.data;
+      console.log(data);
+    } catch (error) {
+      console.error("Error creating conversation:", error);
+    }
   };
 
   // Handle selecting a conversation
