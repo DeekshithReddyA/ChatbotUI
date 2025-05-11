@@ -289,21 +289,23 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({models, setModels}) => {
 
   // Render a model in list view
   const renderModelListItem = (model: AIModel) => {
+    const isLocked = model.isLocked;
     return (
       <div 
         key={model.id}
-        className={`flex items-center justify-between py-2 pl-2 pr-4 hover:bg-accent/10 rounded-md cursor-pointer relative ${
+        className={`flex items-center justify-between py-2 pl-2 pr-4 hover:bg-accent/10 rounded-md relative ${
           selectedModel?.id === model.id ? 'bg-accent/10 ring-1 ring-accent/30' : ''
-        } ${hoveredModel?.id === model.id && isMobile ? 'bg-accent/10' : ''}`}
-        onClick={() => handleModelTap(model)}
+        } ${hoveredModel?.id === model.id && isMobile ? 'bg-accent/10' : ''} ${isLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+        onClick={() => { if (!isLocked) handleModelTap(model); }}
         onMouseEnter={(e) => handleModelHover(model, e)}
         onMouseLeave={handleMouseLeave}
+        aria-disabled={isLocked}
       >
         <div className="flex items-center">
           <div className="mr-2 text-white">
-            <img src={getModelIcon(model.icon || "ai")} alt={model.name} className="w-6 h-6" />
+            <img src={getModelIcon(model.icon || "ai")} alt={model.name} className={`w-6 h-6 ${isLocked ? 'grayscale opacity-60' : ''}`} />
           </div>
-          <span className={`${model.isLocked ? 'text-gray-500' : 'text-foreground'} truncate`}>
+          <span className={`${isLocked ? 'text-gray-500' : 'text-foreground'} truncate`}>
             {model.name}
           </span>
           {model.isPro && 
@@ -333,15 +335,17 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({models, setModels}) => {
 
   // Render a model in grid view
   const renderModelGridItem = (model: AIModel) => {
+    const isLocked = model.isLocked;
     return (
       <div 
         key={model.id}
-        className={`bg-card border border-border/40 p-3 rounded-lg cursor-pointer hover:bg-accent/5 relative ${
+        className={`bg-card border border-border/40 p-3 rounded-lg relative ${
           selectedModel?.id === model.id ? 'ring-1 ring-accent' : ''
-        } ${hoveredModel?.id === model.id && isMobile ? 'ring-1 ring-accent/50' : ''}`}
-        onClick={() => handleModelTap(model)}
+        } ${hoveredModel?.id === model.id && isMobile ? 'ring-1 ring-accent/50' : ''} ${isLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+        onClick={() => { if (!isLocked) handleModelTap(model); }}
         onMouseEnter={(e) => handleModelHover(model, e)}
         onMouseLeave={handleMouseLeave}
+        aria-disabled={isLocked}
       >
         <button
           className={cn(
@@ -355,10 +359,10 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({models, setModels}) => {
         </button>
         <div className="flex justify-center mb-2">
           <div className="text-xl">
-            <img src={getModelIcon(model.icon || "")} alt={model.name} className="w-7 h-7" />
+            <img src={getModelIcon(model.icon || "")} alt={model.name} className={`w-7 h-7 ${isLocked ? 'grayscale opacity-60' : ''}`} />
           </div>
         </div>
-        <div className={`text-center text-sm ${model.isLocked ? 'text-gray-500' : 'text-foreground'} truncate`}>
+        <div className={`text-center text-sm ${isLocked ? 'text-gray-500' : 'text-foreground'} truncate`}>
           {model.name}
         </div>
         <div className="flex justify-center mt-2 gap-1">
