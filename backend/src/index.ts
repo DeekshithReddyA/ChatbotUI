@@ -6,7 +6,8 @@ import { generateText } from './models/google';
 import { modifyPinnedModels } from './models/models';
 import prisma from './config';
 import userRouter from './routes/user';
-import convoRouter, { appendMessage } from './routes/convo';
+import convoRouter, { appendMessage, client, BUCKET_NAME } from './routes/convo';
+import { PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 
 dotenv.config();
 
@@ -18,6 +19,151 @@ app.use(express.json());
 
 app.use('/api/user', userRouter);
 app.use('/api/convo', convoRouter);
+
+// Function to convert a readable stream to string
+function streamToString(stream: NodeJS.ReadableStream): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+    stream.on('error', reject);
+    stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
+  });
+}
+
+// Function to fix all welcome conversations for existing users
+async function migrateWelcomeConversations() {
+  console.log("Starting migration of Welcome to TARS Chat conversations...");
+  
+  try {
+    // Find all conversations with title "Welcome to TARS Chat"
+    const welcomeConversations = await prisma.conversation.findMany({
+      where: { title: "Welcome to TARS Chat" }
+    });
+    
+    console.log(`Found ${welcomeConversations.length} welcome conversations to migrate`);
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const convo of welcomeConversations) {
+      try {
+        // Extract bucket and key from fileUrl
+        const url = new URL(convo.fileUrl);
+        const temp = url.pathname.split('/');
+        const bucket = temp[4];
+        const key = temp[5] + '/' + temp[6];
+        
+        // Get current content
+        let currentMessages = [];
+        const getCommand = new GetObjectCommand({
+          Bucket: bucket,
+          Key: key
+        });
+        
+        const response = await client.send(getCommand);
+        if (response.Body) {
+          const bodyContents = await streamToString(response.Body as NodeJS.ReadableStream);
+          const parsed = JSON.parse(bodyContents);
+          
+          // Check if the messages are in the expected format
+          if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].messages) {
+            // This is the old format with nested messages
+            const oldFormat = parsed[0];
+            currentMessages = oldFormat.messages;
+            
+            // Fix message IDs to use conversation ID
+            currentMessages = currentMessages.map((msg: any, index: number) => ({
+              ...msg,
+              id: `${convo.id}-${index + 1}`
+            }));
+            
+            // Store the fixed messages
+            const putCommand = new PutObjectCommand({
+              Bucket: bucket,
+              Key: key,
+              Body: JSON.stringify(currentMessages),
+              ContentType: 'application/json',
+            });
+            
+            await client.send(putCommand);
+            successCount++;
+            console.log(`Migrated conversation ${convo.id} successfully`);
+          } else if (Array.isArray(parsed)) {
+            // Already in the correct format
+            console.log(`Conversation ${convo.id} already in correct format`);
+            successCount++;
+          } else {
+            throw new Error("Unexpected format");
+          }
+        }
+      } catch (error) {
+        console.error(`Error migrating conversation ${convo.id}:`, error);
+        errorCount++;
+        
+        try {
+          // Create new default messages as a fallback
+          const defaultMessages = [
+            {
+              id: `${convo.id}-1`,
+              content: "What is TARS Chat?",
+              sender: "user",
+              timestamp: new Date("2023-06-15T14:28:00").toISOString(),
+            },
+            {
+              id: `${convo.id}-2`,
+              content: `### TARS Chat is the all in one AI Chat. 
+
+1. **Blazing Fast, Model-Packed.**  
+    We're not just fast — we're **2x faster than ChatGPT**, **10x faster than DeepSeek**. With **20+ models** (Claude, DeepSeek, ChatGPT-4o, and more), you'll always have the right AI for the job — and new ones arrive *within hours* of launch.
+
+2. **Flexible Payments.**  
+   Tired of rigid subscriptions? TARS Chat lets you choose *your* way to pay.  
+   • Just want occasional access? Buy credits that last a full **year**.  
+   • Want unlimited vibes? Subscribe for **$10/month** and get **2,000+ messages**.
+
+3. **No Credit Card? No Problem.**  
+   Unlike others, we welcome everyone.  
+   **UPI, debit cards, net banking, credit cards — all accepted.**  
+   Students, you're not locked out anymore.
+
+Reply here to get started, or click the little "chat" icon up top to make a new chat. Or you can [check out the FAQ](/chat/faq)`,
+              sender: "ai",
+              timestamp: new Date("2023-06-15T14:29:00").toISOString(),
+              model: "gpt-4",
+            },
+          ];
+          
+          // Extract bucket and key from fileUrl
+          const url = new URL(convo.fileUrl);
+          const temp = url.pathname.split('/');
+          const bucket = temp[4];
+          const key = temp[5] + '/' + temp[6];
+          
+          // Save new default messages
+          const putCommand = new PutObjectCommand({
+            Bucket: bucket,
+            Key: key,
+            Body: JSON.stringify(defaultMessages),
+            ContentType: 'application/json',
+          });
+          
+          await client.send(putCommand);
+          console.log(`Recreated messages for conversation ${convo.id}`);
+          successCount++;
+        } catch (fallbackError) {
+          console.error(`Failed to recreate messages for conversation ${convo.id}:`, fallbackError);
+        }
+      }
+    }
+    
+    console.log(`Migration completed. Success: ${successCount}, Errors: ${errorCount}`);
+  } catch (error) {
+    console.error("Error during welcome conversations migration:", error);
+  }
+}
+
+// Run the migration when the server starts
+migrateWelcomeConversations();
 
 // Has to be converted to return these models along with the user data.
 // Have to add another endpoint where only pinned models are returned.
@@ -90,6 +236,9 @@ app.post('/api/chat', async (req, res) => {
 
   // Track the conversation if ID is provided
   const conversationId = req.headers['conversationid'] as string;
+  console.log(`Chat request received for conversation ID: ${conversationId || 'none'}`);
+  console.log(`Model selected: ${model}`);
+  console.log(`Messages in request: ${messages.length}`);
 
   if (!messages || !Array.isArray(messages)) {
     res.status(400).json({ error: 'Invalid messages format' });
@@ -102,6 +251,8 @@ app.post('/api/chat', async (req, res) => {
     if (lastMessage.role === 'user') {
       try {
         console.log(`Saving user message to conversation ${conversationId}`);
+        console.log(`User message content: ${lastMessage.content.substring(0, 50)}${lastMessage.content.length > 50 ? '...' : ''}`);
+        
         const result = await appendMessage(
           conversationId,
           lastMessage.content,
@@ -144,6 +295,9 @@ app.post('/api/chat', async (req, res) => {
     if (conversationId && responseText) {
       try {
         console.log(`Saving AI response to conversation ${conversationId}`);
+        console.log(`AI response length: ${responseText.length} characters`);
+        console.log(`AI response preview: ${responseText.substring(0, 50)}${responseText.length > 50 ? '...' : ''}`);
+        
         const result = await appendMessage(
           conversationId,
           responseText,
@@ -151,7 +305,7 @@ app.post('/api/chat', async (req, res) => {
           new Date(),
           model
         );
-        console.log('AI response save result:', result);
+        console.log('AI response save result:', result.success ? 'Success' : 'Failed');
       } catch (error) {
         console.error('Error saving AI response to conversation:', error);
       }

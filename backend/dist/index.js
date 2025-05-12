@@ -60,6 +60,7 @@ const google_1 = require("./models/google");
 const config_1 = __importDefault(require("./config"));
 const user_1 = __importDefault(require("./routes/user"));
 const convo_1 = __importStar(require("./routes/convo"));
+const client_s3_1 = require("@aws-sdk/client-s3");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3000;
@@ -67,6 +68,137 @@ app.use((0, cors_1.default)());
 app.use(express_1.default.json());
 app.use('/api/user', user_1.default);
 app.use('/api/convo', convo_1.default);
+// Function to convert a readable stream to string
+function streamToString(stream) {
+    return new Promise((resolve, reject) => {
+        const chunks = [];
+        stream.on('data', (chunk) => chunks.push(chunk));
+        stream.on('error', reject);
+        stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
+    });
+}
+// Function to fix all welcome conversations for existing users
+function migrateWelcomeConversations() {
+    return __awaiter(this, void 0, void 0, function* () {
+        console.log("Starting migration of Welcome to TARS Chat conversations...");
+        try {
+            // Find all conversations with title "Welcome to TARS Chat"
+            const welcomeConversations = yield config_1.default.conversation.findMany({
+                where: { title: "Welcome to TARS Chat" }
+            });
+            console.log(`Found ${welcomeConversations.length} welcome conversations to migrate`);
+            let successCount = 0;
+            let errorCount = 0;
+            for (const convo of welcomeConversations) {
+                try {
+                    // Extract bucket and key from fileUrl
+                    const url = new URL(convo.fileUrl);
+                    const temp = url.pathname.split('/');
+                    const bucket = temp[4];
+                    const key = temp[5] + '/' + temp[6];
+                    // Get current content
+                    let currentMessages = [];
+                    const getCommand = new client_s3_1.GetObjectCommand({
+                        Bucket: bucket,
+                        Key: key
+                    });
+                    const response = yield convo_1.client.send(getCommand);
+                    if (response.Body) {
+                        const bodyContents = yield streamToString(response.Body);
+                        const parsed = JSON.parse(bodyContents);
+                        // Check if the messages are in the expected format
+                        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].messages) {
+                            // This is the old format with nested messages
+                            const oldFormat = parsed[0];
+                            currentMessages = oldFormat.messages;
+                            // Fix message IDs to use conversation ID
+                            currentMessages = currentMessages.map((msg, index) => (Object.assign(Object.assign({}, msg), { id: `${convo.id}-${index + 1}` })));
+                            // Store the fixed messages
+                            const putCommand = new client_s3_1.PutObjectCommand({
+                                Bucket: bucket,
+                                Key: key,
+                                Body: JSON.stringify(currentMessages),
+                                ContentType: 'application/json',
+                            });
+                            yield convo_1.client.send(putCommand);
+                            successCount++;
+                            console.log(`Migrated conversation ${convo.id} successfully`);
+                        }
+                        else if (Array.isArray(parsed)) {
+                            // Already in the correct format
+                            console.log(`Conversation ${convo.id} already in correct format`);
+                            successCount++;
+                        }
+                        else {
+                            throw new Error("Unexpected format");
+                        }
+                    }
+                }
+                catch (error) {
+                    console.error(`Error migrating conversation ${convo.id}:`, error);
+                    errorCount++;
+                    try {
+                        // Create new default messages as a fallback
+                        const defaultMessages = [
+                            {
+                                id: `${convo.id}-1`,
+                                content: "What is TARS Chat?",
+                                sender: "user",
+                                timestamp: new Date("2023-06-15T14:28:00").toISOString(),
+                            },
+                            {
+                                id: `${convo.id}-2`,
+                                content: `### TARS Chat is the all in one AI Chat. 
+
+1. **Blazing Fast, Model-Packed.**  
+    We're not just fast — we're **2x faster than ChatGPT**, **10x faster than DeepSeek**. With **20+ models** (Claude, DeepSeek, ChatGPT-4o, and more), you'll always have the right AI for the job — and new ones arrive *within hours* of launch.
+
+2. **Flexible Payments.**  
+   Tired of rigid subscriptions? TARS Chat lets you choose *your* way to pay.  
+   • Just want occasional access? Buy credits that last a full **year**.  
+   • Want unlimited vibes? Subscribe for **$10/month** and get **2,000+ messages**.
+
+3. **No Credit Card? No Problem.**  
+   Unlike others, we welcome everyone.  
+   **UPI, debit cards, net banking, credit cards — all accepted.**  
+   Students, you're not locked out anymore.
+
+Reply here to get started, or click the little "chat" icon up top to make a new chat. Or you can [check out the FAQ](/chat/faq)`,
+                                sender: "ai",
+                                timestamp: new Date("2023-06-15T14:29:00").toISOString(),
+                                model: "gpt-4",
+                            },
+                        ];
+                        // Extract bucket and key from fileUrl
+                        const url = new URL(convo.fileUrl);
+                        const temp = url.pathname.split('/');
+                        const bucket = temp[4];
+                        const key = temp[5] + '/' + temp[6];
+                        // Save new default messages
+                        const putCommand = new client_s3_1.PutObjectCommand({
+                            Bucket: bucket,
+                            Key: key,
+                            Body: JSON.stringify(defaultMessages),
+                            ContentType: 'application/json',
+                        });
+                        yield convo_1.client.send(putCommand);
+                        console.log(`Recreated messages for conversation ${convo.id}`);
+                        successCount++;
+                    }
+                    catch (fallbackError) {
+                        console.error(`Failed to recreate messages for conversation ${convo.id}:`, fallbackError);
+                    }
+                }
+            }
+            console.log(`Migration completed. Success: ${successCount}, Errors: ${errorCount}`);
+        }
+        catch (error) {
+            console.error("Error during welcome conversations migration:", error);
+        }
+    });
+}
+// Run the migration when the server starts
+migrateWelcomeConversations();
 // Has to be converted to return these models along with the user data.
 // Have to add another endpoint where only pinned models are returned.
 app.get('/api/models', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -124,6 +256,9 @@ app.post('/api/chat', (req, res) => __awaiter(void 0, void 0, void 0, function* 
     const userId = req.headers['userid'];
     // Track the conversation if ID is provided
     const conversationId = req.headers['conversationid'];
+    console.log(`Chat request received for conversation ID: ${conversationId || 'none'}`);
+    console.log(`Model selected: ${model}`);
+    console.log(`Messages in request: ${messages.length}`);
     if (!messages || !Array.isArray(messages)) {
         res.status(400).json({ error: 'Invalid messages format' });
         return;
@@ -134,6 +269,7 @@ app.post('/api/chat', (req, res) => __awaiter(void 0, void 0, void 0, function* 
         if (lastMessage.role === 'user') {
             try {
                 console.log(`Saving user message to conversation ${conversationId}`);
+                console.log(`User message content: ${lastMessage.content.substring(0, 50)}${lastMessage.content.length > 50 ? '...' : ''}`);
                 const result = yield (0, convo_1.appendMessage)(conversationId, lastMessage.content, 'user', new Date(), '');
                 console.log('User message save result:', result);
             }
@@ -177,8 +313,10 @@ app.post('/api/chat', (req, res) => __awaiter(void 0, void 0, void 0, function* 
         if (conversationId && responseText) {
             try {
                 console.log(`Saving AI response to conversation ${conversationId}`);
+                console.log(`AI response length: ${responseText.length} characters`);
+                console.log(`AI response preview: ${responseText.substring(0, 50)}${responseText.length > 50 ? '...' : ''}`);
                 const result = yield (0, convo_1.appendMessage)(conversationId, responseText, 'ai', new Date(), model);
-                console.log('AI response save result:', result);
+                console.log('AI response save result:', result.success ? 'Success' : 'Failed');
             }
             catch (error) {
                 console.error('Error saving AI response to conversation:', error);

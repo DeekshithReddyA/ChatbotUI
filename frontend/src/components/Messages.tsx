@@ -53,11 +53,11 @@ function splitMarkdownAtIncompleteCodeBlock(text: string) {
 }
 
 export const Messages = ({
-  messages = [],
+  messages,
   currentModel = "gpt-4",
   onModelChange = () => {},
   isLoading = false,
-  models = [],
+  models,
   selectedText = "",
   setSelectedText = () => {},
   onReplyWithContext = () => {},
@@ -225,7 +225,7 @@ export const Messages = ({
         )}
         <div ref={messagesContainerRef} className="space-y-6 max-w-[900px] mx-auto">
           <AnimatePresence initial={false}>
-            {messages.map((msg, idx) => (
+            {messages && messages.map((msg, idx) => (
               <motion.div
                 key={msg.id}
                 initial={{ opacity: 0, y: 10 }}
@@ -242,7 +242,7 @@ export const Messages = ({
                   <div className={cn("flex mt-1.5 text-xs text-muted-foreground", msg.sender === "user" ? "justify-end" : "justify-start")}>
                     <span className="flex items-center gap-1">
                               {getModelIcon(msg.model || "")}
-                              {models.find(m => m.id === msg.model)?.name || msg.model}
+                              {models && models.find(m => m.id === msg.model)?.name || msg.model}
                     </span>
                   </div>
                 </div>

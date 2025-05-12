@@ -14,7 +14,7 @@ const accessKey = process.env.aws_access_key_id!;
 const secretKey = process.env.aws_secret_access_key!;
 const region = process.env.region!;
 
-const client = new S3Client({
+export const client = new S3Client({
   forcePathStyle: true,
   region: region,
   endpoint: supabaseUrl,
@@ -24,7 +24,7 @@ const client = new S3Client({
   }
 });
 
-const BUCKET_NAME = 'tarsai.convo';
+export const BUCKET_NAME = process.env.BUCKET_NAME as string;
 
 const getPresignedUrl = async (bucketName: string, fileName: string) => {
     const getObjectCommand = new GetObjectCommand({
@@ -114,7 +114,11 @@ export async function fetchMessagesFromS3(conversations: Conversation[]) {
         return {
             ...convo,
             fileUrl,
-            messages,
+            messages: {
+                id: convo.id,
+                title: convo.title,
+                messages: messages
+            },
             lastMessage: lastMessage 
                 ? { content: lastMessage.content, sender: lastMessage.sender }
                 : null,
@@ -125,7 +129,11 @@ export async function fetchMessagesFromS3(conversations: Conversation[]) {
         // Return the conversation without messages if there's an error
         return {
             ...convo,
-            messages: [],
+            messages: {
+                id: convo.id,
+                title: convo.title,
+                messages: []
+            },
             lastMessage: null,
             model: "gpt-4o", // Default model
             error: `Failed to fetch messages: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -154,51 +162,42 @@ export const createDefaultChat = async (userId: string) => {
 
     const key = `${userId}/${chatId}.json`;
   
-    const defaultChat = [
+    // Create the messages array directly instead of wrapping it in another object
+    const defaultMessages = [
       {
-        id: messageId,
-        title: "Welcome to TARS Chat",
-        lastMessage:
-          "What about a recipe app that uses AI to suggest meals based on ingredients?",
-        timestamp: new Date("2023-06-15T14:30:00").toISOString(),
+        id: `${chatId}-1`,
+        content: "What is TARS Chat?",
+        sender: "user",
+        timestamp: new Date("2023-06-15T14:28:00").toISOString(),
+      },
+      {
+        id: `${chatId}-2`,
+        content: `### TARS Chat is the all in one AI Chat. 
+
+1. **Blazing Fast, Model-Packed.**  
+    We're not just fast — we're **2x faster than ChatGPT**, **10x faster than DeepSeek**. With **20+ models** (Claude, DeepSeek, ChatGPT-4o, and more), you'll always have the right AI for the job — and new ones arrive *within hours* of launch.
+
+2. **Flexible Payments.**  
+   Tired of rigid subscriptions? TARS Chat lets you choose *your* way to pay.  
+   • Just want occasional access? Buy credits that last a full **year**.  
+   • Want unlimited vibes? Subscribe for **$10/month** and get **2,000+ messages**.
+
+3. **No Credit Card? No Problem.**  
+   Unlike others, we welcome everyone.  
+   **UPI, debit cards, net banking, credit cards — all accepted.**  
+   Students, you're not locked out anymore.
+
+Reply here to get started, or click the little "chat" icon up top to make a new chat. Or you can [check out the FAQ](/chat/faq)`,
+        sender: "ai",
+        timestamp: new Date("2023-06-15T14:29:00").toISOString(),
         model: "gpt-4",
-        messages: [
-          {
-            id: `${messageId}-1`,
-            content: "What is TARS Chat?",
-            sender: "user",
-            timestamp: new Date("2023-06-15T14:28:00").toISOString(),
-          },
-          {
-            id: `${messageId}-2`,
-            content: `### TARS Chat is the all in one AI Chat. 
-  
-  1. **Blazing Fast, Model-Packed.**  
-      We're not just fast — we're **2x faster than ChatGPT**, **10x faster than DeepSeek**. With **20+ models** (Claude, DeepSeek, ChatGPT-4o, and more), you'll always have the right AI for the job — and new ones arrive *within hours* of launch.
-  
-  2. **Flexible Payments.**  
-     Tired of rigid subscriptions? TARS Chat lets you choose *your* way to pay.  
-     • Just want occasional access? Buy credits that last a full **year**.  
-     • Want unlimited vibes? Subscribe for **$10/month** and get **2,000+ messages**.
-  
-  3. **No Credit Card? No Problem.**  
-     Unlike others, we welcome everyone.  
-     **UPI, debit cards, net banking, credit cards — all accepted.**  
-     Students, you're not locked out anymore.
-  
-  Reply here to get started, or click the little "chat" icon up top to make a new chat. Or you can [check out the FAQ](/chat/faq)`,
-            sender: "ai",
-            timestamp: new Date("2023-06-15T14:29:00").toISOString(),
-            model: "gpt-4",
-          },
-        ],
       },
     ];
   
     const command = new PutObjectCommand({
       Bucket: BUCKET_NAME,
       Key: key,
-      Body: JSON.stringify(defaultChat),
+      Body: JSON.stringify(defaultMessages),
       ContentType: "application/json",
     });
   
@@ -208,7 +207,6 @@ export const createDefaultChat = async (userId: string) => {
     const fileUrl = await getPresignedUrl(BUCKET_NAME, key);
 
     return {fileUrl, chatId};
-    
   };
 
 
@@ -317,7 +315,11 @@ convoRouter.get('/list', async (req, res) => {
                 return {
                     ...convo,
                     fileUrl,
-                    messages,
+                    messages: {
+                        id: convo.id,
+                        title: convo.title,
+                        messages: messages
+                    },
                     lastMessage: lastMessage 
                         ? { content: lastMessage.content, sender: lastMessage.sender }
                         : null,
@@ -328,7 +330,11 @@ convoRouter.get('/list', async (req, res) => {
                 // Return the conversation without messages if there's an error
                 return {
                     ...convo,
-                    messages: [],
+                    messages: {
+                        id: convo.id,
+                        title: convo.title,
+                        messages: []
+                    },
                     lastMessage: null,
                     model: "gpt-4o", // Default model
                     error: `Failed to fetch messages: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -447,7 +453,7 @@ convoRouter.get('/list', async (req, res) => {
 // });
 
 convoRouter.post('/create', async (req, res) => {
-    const { userId, title } = req.body;
+    const { userId, title, firstMessage, aiResponse, model } = req.body;
 
     if (!userId || !title) {
         res.status(400).json({ error: 'Missing required fields' });
@@ -464,10 +470,41 @@ convoRouter.post('/create', async (req, res) => {
             return;
         }
         const chatId = uuidv4();
-        // 1. Upload empty array as JSON to S3 with the convo title as filename
+        
+        // Prepare initial messages if provided
+        let initialMessages = [];
+        
+        if (firstMessage) {
+            // Create message objects for first message and AI response
+            const userMessageId = `${chatId}-1`;
+            const userMessage = {
+                id: userMessageId,
+                content: firstMessage,
+                sender: "user",
+                timestamp: new Date().toISOString()
+            };
+            
+            initialMessages.push(userMessage);
+            
+            // Add AI response if provided
+            if (aiResponse) {
+                const aiMessageId = `${chatId}-2`;
+                const aiMessage = {
+                    id: aiMessageId,
+                    content: aiResponse,
+                    sender: "ai",
+                    timestamp: new Date().toISOString(),
+                    model: model || "gpt-4o"
+                };
+                
+                initialMessages.push(aiMessage);
+            }
+        }
+        
+        // 1. Upload conversation data to S3
         const fileName = `${user.id}/${chatId}.json`;
-        const fileContent = JSON.stringify([]); // empty array
-        console.log(`Creating new conversation file: ${fileName} with content: ${fileContent}`);
+        const fileContent = JSON.stringify(initialMessages);
+        console.log(`Creating new conversation file: ${fileName} with content length: ${fileContent.length}`);
         
         const putCommand = new PutObjectCommand({
             Bucket: BUCKET_NAME,
@@ -486,6 +523,7 @@ convoRouter.post('/create', async (req, res) => {
         // Create the conversation with the fileUrl
         const conversation = await prisma.conversation.create({
             data: {
+                id: chatId,
                 userId: user.id,
                 title: title as string,
                 fileUrl
@@ -570,10 +608,11 @@ export const appendMessage = async (id: string, content: string, sender: string,
         console.log(`Found conversation: ${JSON.stringify(convo)}`);
         
         try {
-            // Extract bucket and key from fileUrl
+            // Extract bucket and key from fileUrl using the same parsing approach as other functions
             const url = new URL(convo.fileUrl);
-            const bucket = url.pathname.split('/')[1];
-            const key = decodeURIComponent(url.pathname.split('/').slice(2).join('/'));
+            const temp = url.pathname.split('/');
+            const bucket = temp[4]; // Match format used in fetchMessagesFromS3
+            const key = temp[5] + '/' + temp[6]; // Match format used in fetchMessagesFromS3
             
             console.log(`Extracted bucket: ${bucket}, key: ${key}`);
             

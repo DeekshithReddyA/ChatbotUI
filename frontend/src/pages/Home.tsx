@@ -11,6 +11,7 @@ export const Home = () => {
   const [error, setError] = useState<string | null>(null);
   const [conversations, setConversations] = useState([]);
   const [models, setModels] = useState([]);
+  const [messages, setMessages] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -40,9 +41,9 @@ export const Home = () => {
         console.log("User data loaded:", response.data);
         
         // Here you could load conversations and models
-        // setConversations(response.data.conversations || []);
-        // setModels(response.data.models || []);
-        
+        setConversations(response.data.conversationsWithMessages || []);
+        setModels(response.data.models || []);
+        // setMessages(response.data.messages || []);
         setIsLoading(false);
       } catch (error) {
         console.error("Error loading user data:", error);

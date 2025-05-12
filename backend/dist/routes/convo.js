@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.appendMessage = exports.createDefaultChat = exports.createFolder = void 0;
+exports.appendMessage = exports.createDefaultChat = exports.createFolder = exports.BUCKET_NAME = exports.client = void 0;
 exports.fetchMessagesFromS3 = fetchMessagesFromS3;
 const express_1 = require("express");
 const config_1 = __importDefault(require("../config"));
@@ -25,7 +25,7 @@ const supabaseUrl = process.env.endpoint_url;
 const accessKey = process.env.aws_access_key_id;
 const secretKey = process.env.aws_secret_access_key;
 const region = process.env.region;
-const client = new client_s3_1.S3Client({
+exports.client = new client_s3_1.S3Client({
     forcePathStyle: true,
     region: region,
     endpoint: supabaseUrl,
@@ -34,14 +34,14 @@ const client = new client_s3_1.S3Client({
         secretAccessKey: secretKey,
     }
 });
-const BUCKET_NAME = 'tarsai.convo';
+exports.BUCKET_NAME = process.env.BUCKET_NAME;
 const getPresignedUrl = (bucketName, fileName) => __awaiter(void 0, void 0, void 0, function* () {
     const getObjectCommand = new client_s3_1.GetObjectCommand({
         Bucket: bucketName,
         Key: fileName,
     });
     // URL expires in 6 days (3600 seconds × 24 hours × 6 days)
-    return yield (0, s3_request_presigner_1.getSignedUrl)(client, getObjectCommand, { expiresIn: 6 * 24 * 3600 });
+    return yield (0, s3_request_presigner_1.getSignedUrl)(exports.client, getObjectCommand, { expiresIn: 6 * 24 * 3600 });
 });
 // Helper to convert stream to string (NodeJS Readable)
 function streamToString(stream) {
@@ -68,7 +68,7 @@ function fetchMessagesFromS3(conversations) {
                     Bucket: bucket,
                     Key: key
                 });
-                const response = yield client.send(getObjectCommand);
+                const response = yield exports.client.send(getObjectCommand);
                 if (!response.Body) {
                     throw new Error('Empty file content');
                 }
@@ -108,15 +108,22 @@ function fetchMessagesFromS3(conversations) {
                     ? aiMessages[aiMessages.length - 1].model
                     : "gpt-4o"; // Default model
                 console.log(`Successfully processed conversation ${convo.id}`);
-                return Object.assign(Object.assign({}, convo), { fileUrl,
-                    messages, lastMessage: lastMessage
+                return Object.assign(Object.assign({}, convo), { fileUrl, messages: {
+                        id: convo.id,
+                        title: convo.title,
+                        messages: messages
+                    }, lastMessage: lastMessage
                         ? { content: lastMessage.content, sender: lastMessage.sender }
                         : null, model });
             }
             catch (error) {
                 console.error(`Error fetching messages for conversation ${convo.id}:`, error);
                 // Return the conversation without messages if there's an error
-                return Object.assign(Object.assign({}, convo), { messages: [], lastMessage: null, model: "gpt-4o", error: `Failed to fetch messages: ${error instanceof Error ? error.message : 'Unknown error'}` });
+                return Object.assign(Object.assign({}, convo), { messages: {
+                        id: convo.id,
+                        title: convo.title,
+                        messages: []
+                    }, lastMessage: null, model: "gpt-4o", error: `Failed to fetch messages: ${error instanceof Error ? error.message : 'Unknown error'}` });
             }
         })));
         return conversationsWithMessages;
@@ -125,66 +132,58 @@ function fetchMessagesFromS3(conversations) {
 // Function which adds a folder in the bucket with the userId as the name
 const createFolder = (userId) => __awaiter(void 0, void 0, void 0, function* () {
     const putCommand = new client_s3_1.PutObjectCommand({
-        Bucket: BUCKET_NAME,
+        Bucket: exports.BUCKET_NAME,
         Key: `${userId}/`,
         Body: 'application/json',
     });
-    yield client.send(putCommand);
-    console.log(`Successfully created folder in S3: ${BUCKET_NAME}/${userId}`);
+    yield exports.client.send(putCommand);
+    console.log(`Successfully created folder in S3: ${exports.BUCKET_NAME}/${userId}`);
 });
 exports.createFolder = createFolder;
 const createDefaultChat = (userId) => __awaiter(void 0, void 0, void 0, function* () {
     const chatId = (0, uuid_1.v4)(); // generates a unique ID
     const messageId = (0, uuid_1.v4)();
     const key = `${userId}/${chatId}.json`;
-    const defaultChat = [
+    // Create the messages array directly instead of wrapping it in another object
+    const defaultMessages = [
         {
-            id: messageId,
-            title: "Welcome to TARS Chat",
-            lastMessage: "What about a recipe app that uses AI to suggest meals based on ingredients?",
-            timestamp: new Date("2023-06-15T14:30:00").toISOString(),
+            id: `${chatId}-1`,
+            content: "What is TARS Chat?",
+            sender: "user",
+            timestamp: new Date("2023-06-15T14:28:00").toISOString(),
+        },
+        {
+            id: `${chatId}-2`,
+            content: `### TARS Chat is the all in one AI Chat. 
+
+1. **Blazing Fast, Model-Packed.**  
+    We're not just fast — we're **2x faster than ChatGPT**, **10x faster than DeepSeek**. With **20+ models** (Claude, DeepSeek, ChatGPT-4o, and more), you'll always have the right AI for the job — and new ones arrive *within hours* of launch.
+
+2. **Flexible Payments.**  
+   Tired of rigid subscriptions? TARS Chat lets you choose *your* way to pay.  
+   • Just want occasional access? Buy credits that last a full **year**.  
+   • Want unlimited vibes? Subscribe for **$10/month** and get **2,000+ messages**.
+
+3. **No Credit Card? No Problem.**  
+   Unlike others, we welcome everyone.  
+   **UPI, debit cards, net banking, credit cards — all accepted.**  
+   Students, you're not locked out anymore.
+
+Reply here to get started, or click the little "chat" icon up top to make a new chat. Or you can [check out the FAQ](/chat/faq)`,
+            sender: "ai",
+            timestamp: new Date("2023-06-15T14:29:00").toISOString(),
             model: "gpt-4",
-            messages: [
-                {
-                    id: `${messageId}-1`,
-                    content: "What is TARS Chat?",
-                    sender: "user",
-                    timestamp: new Date("2023-06-15T14:28:00").toISOString(),
-                },
-                {
-                    id: `${messageId}-2`,
-                    content: `### TARS Chat is the all in one AI Chat. 
-  
-  1. **Blazing Fast, Model-Packed.**  
-      We're not just fast — we're **2x faster than ChatGPT**, **10x faster than DeepSeek**. With **20+ models** (Claude, DeepSeek, ChatGPT-4o, and more), you'll always have the right AI for the job — and new ones arrive *within hours* of launch.
-  
-  2. **Flexible Payments.**  
-     Tired of rigid subscriptions? TARS Chat lets you choose *your* way to pay.  
-     • Just want occasional access? Buy credits that last a full **year**.  
-     • Want unlimited vibes? Subscribe for **$10/month** and get **2,000+ messages**.
-  
-  3. **No Credit Card? No Problem.**  
-     Unlike others, we welcome everyone.  
-     **UPI, debit cards, net banking, credit cards — all accepted.**  
-     Students, you're not locked out anymore.
-  
-  Reply here to get started, or click the little "chat" icon up top to make a new chat. Or you can [check out the FAQ](/chat/faq)`,
-                    sender: "ai",
-                    timestamp: new Date("2023-06-15T14:29:00").toISOString(),
-                    model: "gpt-4",
-                },
-            ],
         },
     ];
     const command = new client_s3_1.PutObjectCommand({
-        Bucket: BUCKET_NAME,
+        Bucket: exports.BUCKET_NAME,
         Key: key,
-        Body: JSON.stringify(defaultChat),
+        Body: JSON.stringify(defaultMessages),
         ContentType: "application/json",
     });
-    yield client.send(command);
-    console.log(`Default chat created at: ${BUCKET_NAME}/${key}`);
-    const fileUrl = yield getPresignedUrl(BUCKET_NAME, key);
+    yield exports.client.send(command);
+    console.log(`Default chat created at: ${exports.BUCKET_NAME}/${key}`);
+    const fileUrl = yield getPresignedUrl(exports.BUCKET_NAME, key);
     return { fileUrl, chatId };
 });
 exports.createDefaultChat = createDefaultChat;
@@ -230,7 +229,7 @@ convoRouter.get('/list', (req, res) => __awaiter(void 0, void 0, void 0, functio
                     Bucket: bucket,
                     Key: key
                 });
-                const response = yield client.send(getObjectCommand);
+                const response = yield exports.client.send(getObjectCommand);
                 if (!response.Body) {
                     throw new Error('Empty file content');
                 }
@@ -270,15 +269,22 @@ convoRouter.get('/list', (req, res) => __awaiter(void 0, void 0, void 0, functio
                     ? aiMessages[aiMessages.length - 1].model
                     : "gpt-4o"; // Default model
                 console.log(`Successfully processed conversation ${convo.id}`);
-                return Object.assign(Object.assign({}, convo), { fileUrl,
-                    messages, lastMessage: lastMessage
+                return Object.assign(Object.assign({}, convo), { fileUrl, messages: {
+                        id: convo.id,
+                        title: convo.title,
+                        messages: messages
+                    }, lastMessage: lastMessage
                         ? { content: lastMessage.content, sender: lastMessage.sender }
                         : null, model });
             }
             catch (error) {
                 console.error(`Error fetching messages for conversation ${convo.id}:`, error);
                 // Return the conversation without messages if there's an error
-                return Object.assign(Object.assign({}, convo), { messages: [], lastMessage: null, model: "gpt-4o", error: `Failed to fetch messages: ${error instanceof Error ? error.message : 'Unknown error'}` });
+                return Object.assign(Object.assign({}, convo), { messages: {
+                        id: convo.id,
+                        title: convo.title,
+                        messages: []
+                    }, lastMessage: null, model: "gpt-4o", error: `Failed to fetch messages: ${error instanceof Error ? error.message : 'Unknown error'}` });
             }
         })));
         console.log(`Returning ${conversationsWithMessages.length} conversations with messages`);
@@ -376,7 +382,7 @@ convoRouter.get('/list', (req, res) => __awaiter(void 0, void 0, void 0, functio
 //     }
 // });
 convoRouter.post('/create', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { userId, title } = req.body;
+    const { userId, title, firstMessage, aiResponse, model } = req.body;
     if (!userId || !title) {
         res.status(400).json({ error: 'Missing required fields' });
         return;
@@ -391,24 +397,50 @@ convoRouter.post('/create', (req, res) => __awaiter(void 0, void 0, void 0, func
             return;
         }
         const chatId = (0, uuid_1.v4)();
-        // 1. Upload empty array as JSON to S3 with the convo title as filename
+        // Prepare initial messages if provided
+        let initialMessages = [];
+        if (firstMessage) {
+            // Create message objects for first message and AI response
+            const userMessageId = `${chatId}-1`;
+            const userMessage = {
+                id: userMessageId,
+                content: firstMessage,
+                sender: "user",
+                timestamp: new Date().toISOString()
+            };
+            initialMessages.push(userMessage);
+            // Add AI response if provided
+            if (aiResponse) {
+                const aiMessageId = `${chatId}-2`;
+                const aiMessage = {
+                    id: aiMessageId,
+                    content: aiResponse,
+                    sender: "ai",
+                    timestamp: new Date().toISOString(),
+                    model: model || "gpt-4o"
+                };
+                initialMessages.push(aiMessage);
+            }
+        }
+        // 1. Upload conversation data to S3
         const fileName = `${user.id}/${chatId}.json`;
-        const fileContent = JSON.stringify([]); // empty array
-        console.log(`Creating new conversation file: ${fileName} with content: ${fileContent}`);
+        const fileContent = JSON.stringify(initialMessages);
+        console.log(`Creating new conversation file: ${fileName} with content length: ${fileContent.length}`);
         const putCommand = new client_s3_1.PutObjectCommand({
-            Bucket: BUCKET_NAME,
+            Bucket: exports.BUCKET_NAME,
             Key: fileName,
             Body: fileContent,
             ContentType: 'application/json',
         });
-        yield client.send(putCommand);
-        console.log(`Successfully created file in S3: ${BUCKET_NAME}/${fileName}`);
+        yield exports.client.send(putCommand);
+        console.log(`Successfully created file in S3: ${exports.BUCKET_NAME}/${fileName}`);
         // Generate a presigned URL for access
-        const fileUrl = yield getPresignedUrl(BUCKET_NAME, fileName);
+        const fileUrl = yield getPresignedUrl(exports.BUCKET_NAME, fileName);
         console.log(`Generated presigned URL: ${fileUrl}`);
         // Create the conversation with the fileUrl
         const conversation = yield config_1.default.conversation.create({
             data: {
+                id: chatId,
                 userId: user.id,
                 title: title,
                 fileUrl
@@ -447,7 +479,7 @@ convoRouter.delete('/:id', (req, res) => __awaiter(void 0, void 0, void 0, funct
                 Bucket: bucket,
                 Key: key
             });
-            yield client.send(deleteCommand);
+            yield exports.client.send(deleteCommand);
             console.log(`Successfully deleted S3 file: ${bucket}/${key}`);
         }
         catch (error) {
@@ -479,14 +511,15 @@ const appendMessage = (id, content, sender, timestamp, model) => __awaiter(void 
         }
         console.log(`Found conversation: ${JSON.stringify(convo)}`);
         try {
-            // Extract bucket and key from fileUrl
+            // Extract bucket and key from fileUrl using the same parsing approach as other functions
             const url = new URL(convo.fileUrl);
-            const bucket = url.pathname.split('/')[1];
-            const key = decodeURIComponent(url.pathname.split('/').slice(2).join('/'));
+            const temp = url.pathname.split('/');
+            const bucket = temp[4]; // Match format used in fetchMessagesFromS3
+            const key = temp[5] + '/' + temp[6]; // Match format used in fetchMessagesFromS3
             console.log(`Extracted bucket: ${bucket}, key: ${key}`);
             // 1. Fetch current messages
             const getObjectCommand = new client_s3_1.GetObjectCommand({ Bucket: bucket, Key: key });
-            const response = yield client.send(getObjectCommand);
+            const response = yield exports.client.send(getObjectCommand);
             const bodyContents = yield streamToString(response.Body);
             console.log(`Retrieved file contents of length: ${bodyContents.length}`);
             // Parse the messages array
@@ -522,7 +555,7 @@ const appendMessage = (id, content, sender, timestamp, model) => __awaiter(void 
                 Body: messagesJson,
                 ContentType: 'application/json',
             });
-            yield client.send(putCommand);
+            yield exports.client.send(putCommand);
             console.log(`Successfully uploaded updated messages to ${bucket}/${key}`);
             // 4. Update the conversation's updatedAt field
             yield config_1.default.conversation.update({

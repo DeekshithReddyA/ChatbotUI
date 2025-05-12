@@ -8,6 +8,7 @@ import { Menu as MenuIcon } from "lucide-react";
 import { Button } from "./ui/Button";
 import { AIModel } from "../types/AIModel";
 import axios from "axios";
+import { v4 as uuidv4 } from 'uuid';
 
 interface Message {
   id: string;
@@ -21,8 +22,13 @@ interface Conversation {
   id: string;
   title: string;
   lastMessage: string;
-  timestamp: Date;
-  messages: Message[];
+  createdAt: Date;
+  updatedAt: Date;
+  messages: {
+    id: string;
+    title: string;
+    messages: Message[];
+  };
   model: string;
 }
 
@@ -37,56 +43,61 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   // Mock data for conversations
-  const [conversations, setConversations] = useState<Conversation[]>([
-    {
-      id: "1",
-      title: "Welcome to TARS Chat",
-      lastMessage:
-        "What about a recipe app that uses AI to suggest meals based on ingredients?",
-      timestamp: new Date("2023-06-15T14:30:00"),
-      model: "gpt-4",
-      messages: [
-        {
-          id: "1-1",
-          content: "What is TARS Chat?",
-          sender: "user",
-          timestamp: new Date("2023-06-15T14:28:00"),
-        },
-        {
-          id: "1-2",
-          content:
-            `### TARS Chat is the all in one AI Chat. 
+//   const [conversations, setConversations] = useState<Conversation[]>([
+//     {
+//       id: "1",
+//       title: "Welcome to TARS Chat",
+//       lastMessage:
+//         "What about a recipe app that uses AI to suggest meals based on ingredients?",
+//       timestamp: new Date("2023-06-15T14:30:00"),
+//       model: "gpt-4",
+//       messages: [
+//         {
+//           id: "1-1",
+//           content: "What is TARS Chat?",
+//           sender: "user",
+//           timestamp: new Date("2023-06-15T14:28:00"),
+//         },
+//         {
+//           id: "1-2",
+//           content:
+//             `### TARS Chat is the all in one AI Chat. 
 
-1. **Blazing Fast, Model-Packed.**\n 
-    We're not just fast — we're **2x faster than ChatGPT**, **10x faster than DeepSeek**. With **20+ models** (Claude, DeepSeek, ChatGPT-4o, and more), you'll always have the right AI for the job — and new ones arrive *within hours* of launch.
+// 1. **Blazing Fast, Model-Packed.**\n 
+//     We're not just fast — we're **2x faster than ChatGPT**, **10x faster than DeepSeek**. With **20+ models** (Claude, DeepSeek, ChatGPT-4o, and more), you'll always have the right AI for the job — and new ones arrive *within hours* of launch.
 
-2. **Flexible Payments.**\n
-   Tired of rigid subscriptions? TARS Chat lets you choose *your* way to pay.\n
-   • Just want occasional access? Buy credits that last a full **year**.\n
-   • Want unlimited vibes? Subscribe for **$10/month** and get **2,000+ messages**.
+// 2. **Flexible Payments.**\n
+//    Tired of rigid subscriptions? TARS Chat lets you choose *your* way to pay.\n
+//    • Just want occasional access? Buy credits that last a full **year**.\n
+//    • Want unlimited vibes? Subscribe for **$10/month** and get **2,000+ messages**.
 
-3. **No Credit Card? No Problem.**\n
-   Unlike others, we welcome everyone.
-   **UPI, debit cards, net banking, credit cards — all accepted.**
-   Students, you're not locked out anymore.
-
-
+// 3. **No Credit Card? No Problem.**\n
+//    Unlike others, we welcome everyone.
+//    **UPI, debit cards, net banking, credit cards — all accepted.**
+//    Students, you're not locked out anymore.
 
 
-Reply here to get started, or click the little "chat" icon up top to make a new chat. Or you can [check out the FAQ](/chat/faq)`,
-          sender: "ai",
-          timestamp: new Date("2023-06-15T14:29:00"),
-          model: "gpt-4",
-        },
+
+
+// Reply here to get started, or click the little "chat" icon up top to make a new chat. Or you can [check out the FAQ](/chat/faq)`,
+//           sender: "ai",
+//           timestamp: new Date("2023-06-15T14:29:00"),
+//           model: "gpt-4",
+//         },
         
-      ],
-    },
-  ]);
+//       ],
+//     },
+//   ]);
 
 
   const [activeConversation, setActiveConversation] = useState<string>(
-    conversations[0].id,
+    props.conversations[0].id,
   );
+  
+  // New state variable to track if we're awaiting the first message in a new conversation
+  const [awaitingFirstMessage, setAwaitingFirstMessage] = useState(false);
+  // Temporary conversation ID to use before backend sync
+  const [tempConversationId, setTempConversationId] = useState<string | null>(null);
 
   const [models, setModels] = useState<AIModel[]>([]);
 
@@ -137,9 +148,12 @@ Reply here to get started, or click the little "chat" icon up top to make a new 
   }, []);
 
   // Find the current active conversation
-  const currentConversation =
-    conversations.find((conv) => conv.id === activeConversation) ||
-    conversations[0];
+  const currentConversation = awaitingFirstMessage 
+    ? null
+    : props.conversations.find((conv) => conv.id === activeConversation) ||
+      props.conversations[0];
+
+  console.log("Current conversation: ", currentConversation);
 
   // Improved SSE handling with proper cleanup
   useEffect(() => {
@@ -151,6 +165,22 @@ Reply here to get started, or click the little "chat" icon up top to make a new 
       }
     };
   }, []);
+
+  // Generate a title from the user's message (3-4 words)
+  const generateTitleFromMessage = (message: string) => {
+    // Remove any non-alphanumeric characters and split into words
+    const words = message.replace(/[^\w\s]/gi, '').split(/\s+/);
+    
+    // Take up to 4 words for the title
+    const titleWords = words.slice(0, 4);
+    
+    // If the result is empty or too short, use a default title
+    if (titleWords.length === 0) {
+      return "New Conversation";
+    }
+    
+    return titleWords.join(' ');
+  };
 
   const handleSendMessage = async (content: string, files?: File[]) => {
     if (!content.trim() && (!files || files.length === 0)) return;
@@ -164,26 +194,222 @@ Reply here to get started, or click the little "chat" icon up top to make a new 
         : `[Attached: ${fileNames}]`;
     }
 
+    // Handle first message in a new conversation
+    if (awaitingFirstMessage) {
+      // Generate a temporary ID for the new conversation
+      const tempId = tempConversationId || uuidv4();
+      
+      // Create a title from the first few words of the message
+      const title = generateTitleFromMessage(messageContent);
+      
+      // Create the message
+      const newMessage: Message = {
+        id: `${tempId}-1`,
+        content: messageContent,
+        sender: "user",
+        timestamp: new Date(),
+      };
+      
+      // Create a temporary conversation
+      const newConversation: Conversation = {
+        id: tempId,
+        title: title,
+        lastMessage: messageContent,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        messages: {
+          id: tempId,
+          title: title,
+          messages: [newMessage]
+        },
+        model: "gpt-4o", // Default model
+      };
+      
+      // Update conversations and set this as active
+      props.setConversations([newConversation, ...props.conversations]);
+      setActiveConversation(tempId);
+      
+      // No longer awaiting first message
+      setAwaitingFirstMessage(false);
+      setTempConversationId(null);
+      
+      // Reset AI response
+      setAiResponse("");
+      
+      // Show loading state
+      setIsLoading(true);
+      
+      try {
+        // Create an array of messages for the API
+        const messagesForAPI = [{
+          role: "user",
+          content: messageContent
+        }];
+        
+        // Create a new SSE connection for a new conversation
+        streamSource.current = new SSE("http://localhost:3000/api/chat", {
+          headers: {
+            "Content-Type": "application/json",
+            // Don't pass conversationId for new conversations yet, as it doesn't exist on backend
+          },
+          payload: JSON.stringify({
+            messages: messagesForAPI,
+            model: "gpt-4o" // Default model for new conversations
+          }),
+          method: "POST",
+        });
+        
+        let accumulatedResponse = "";
+        
+        streamSource.current.addEventListener("message", (e: any) => {
+          if (e.data === "[DONE]") {
+            if (streamSource.current) {
+              streamSource.current.close();
+              streamSource.current = null;
+            }
+            
+            // Add AI response to conversation only after streaming is complete
+            const aiMessageObj: Message = {
+              id: `${tempId}-2`,
+              content: accumulatedResponse,
+              sender: "ai",
+              timestamp: new Date(),
+              model: "gpt-4o",
+            };
+            
+            // Update the conversation with AI response
+            props.setConversations((prevConversations: Conversation[]) => 
+              prevConversations.map(conv => {
+                if (conv.id === tempId) {
+                  return {
+                    ...conv,
+                    messages: {
+                      ...conv.messages,
+                      messages: [...conv.messages.messages, aiMessageObj]
+                    },
+                    lastMessage: accumulatedResponse.substring(0, 50) + (accumulatedResponse.length > 50 ? "..." : ""),
+                    timestamp: new Date(),
+                  };
+                }
+                return conv;
+              })
+            );
+            
+            // Create the conversation in the backend
+            axios.post(`${BACKEND_URL}/api/convo/create`, {
+              userId: localStorage.getItem('userId'),
+              title: title,
+              firstMessage: messageContent,
+              aiResponse: accumulatedResponse,
+              model: "gpt-4o"
+            })
+              .then(response => {
+                // Update the conversation with the real ID from backend
+                const { id: backendId } = response.data;
+                console.log(`Conversation created on backend with ID: ${backendId}`);
+                if (backendId && backendId !== tempId) {
+                  props.setConversations((prevConversations: Conversation[]) => 
+                    prevConversations.map(conv => {
+                      if (conv.id === tempId) {
+                        return {
+                          ...conv,
+                          id: backendId,
+                          messages: {
+                            ...conv.messages,
+                            id: backendId
+                          }
+                        };
+                      }
+                      return conv;
+                    })
+                  );
+                  setActiveConversation(backendId);
+                }
+              })
+              .catch(error => {
+                console.error("Error creating conversation in backend:", error);
+              });
+            
+            setIsLoading(false);
+            setAiResponse("");
+            return;
+          }
+          
+          if (streamPaused) return;
+          
+          try {
+            // Parse the event data as JSON
+            const parsed = JSON.parse(e.data);
+            const delta = parsed.choices?.[0]?.delta?.content || "";
+            
+            if (delta) {
+              accumulatedResponse += delta;
+              setAiResponse(accumulatedResponse);
+            }
+          } catch (err) {
+            console.error("Error parsing SSE message:", err);
+          }
+        });
+        
+        streamSource.current.addEventListener("error", (e: any) => {
+          console.error("SSE error:", e);
+          if (streamSource.current) {
+            streamSource.current.close();
+            streamSource.current = null;
+          }
+          setIsLoading(false);
+          
+          // If error occurs with first message, reset state
+          if (awaitingFirstMessage) {
+            setAwaitingFirstMessage(false);
+            setTempConversationId(null);
+          }
+        });
+        
+        streamSource.current.stream();
+      } catch (error) {
+        console.error("Error sending message:", error);
+        setIsLoading(false);
+        
+        // If error occurs with first message, reset state
+        if (awaitingFirstMessage) {
+          setAwaitingFirstMessage(false);
+          setTempConversationId(null);
+        }
+      }
+      
+      return;
+    }
+
+    // Regular message handling for existing conversations
+    if (!currentConversation) {
+      console.error("Cannot send message: No active conversation");
+      return;
+    }
+
     const newMessage: Message = {
-      id: `${currentConversation.id}-${currentConversation.messages.length + 1}`,
+      id: `${currentConversation.id}-${currentConversation.messages.messages.length + 1}`,
       content: messageContent,
       sender: "user",
       timestamp: new Date(),
     };
 
     // Update the conversation with the user message
-    const updatedConversationsWithUserMessage = conversations.map((conv) => {
+    const updatedConversationsWithUserMessage = props.conversations.map((conv) => {
       if (conv.id === activeConversation) {
         return {
           ...conv,
-          messages: [...conv.messages, newMessage],
+          messages: {
+            ...conv.messages,
+            messages: [...conv.messages.messages, newMessage]
+          },
           lastMessage: messageContent,
           timestamp: new Date(),
         };
       }
       return conv;
     });
-    setConversations(updatedConversationsWithUserMessage);
+    props.setConversations(updatedConversationsWithUserMessage);
 
     // Reset AI response
     setAiResponse("");
@@ -199,7 +425,7 @@ Reply here to get started, or click the little "chat" icon up top to make a new 
       }
 
       // Create an array of messages for the API
-      const messagesForAPI = currentConversation.messages.map(msg => ({
+      const messagesForAPI = currentConversation.messages.messages.map(msg => ({
         role: msg.sender === "user" ? "user" : "assistant",
         content: msg.content
       }));
@@ -210,10 +436,12 @@ Reply here to get started, or click the little "chat" icon up top to make a new 
         content: messageContent
       });
 
-      // Create a new SSE connection
+      // Create a new SSE connection for existing conversation
       streamSource.current = new SSE("http://localhost:3000/api/chat", {
         headers: {
           "Content-Type": "application/json",
+          "conversationid": currentConversation.id, // Pass the conversation ID
+          "userid": localStorage.getItem('userId') || '' // Also pass the user ID
         },
         payload: JSON.stringify({
           messages: messagesForAPI,
@@ -233,19 +461,22 @@ Reply here to get started, or click the little "chat" icon up top to make a new 
           
           // Add AI response to conversation only after streaming is complete
           const aiMessageObj: Message = {
-            id: `${currentConversation.id}-${currentConversation.messages.length + 2}`,
+            id: `${currentConversation.id}-${currentConversation.messages.messages.length + 2}`,
             content: accumulatedResponse,
             sender: "ai",
             timestamp: new Date(),
             model: currentConversation.model,
           };
 
-          setConversations(prevConversations => 
+          props.setConversations((prevConversations: Conversation[]) => 
             prevConversations.map(conv => {
               if (conv.id === activeConversation) {
                 return {
                   ...conv,
-                  messages: [...conv.messages, aiMessageObj],
+                  messages: {
+                    ...conv.messages,
+                    messages: [...conv.messages.messages, aiMessageObj]
+                  },
                   lastMessage: accumulatedResponse.substring(0, 50) + (accumulatedResponse.length > 50 ? "..." : ""),
                   timestamp: new Date(),
                 };
@@ -292,29 +523,15 @@ Reply here to get started, or click the little "chat" icon up top to make a new 
   };
 
   const handleNewConversation = async () => {
-    const newConversation: Conversation = {
-      id: `${conversations.length + 1}`,
-      title: `New Conversation ${conversations.length + 1}`,
-      lastMessage: "",
-      timestamp: new Date(),
-      messages: [],
-      model: "gpt-4o", // Default model
-    };
-
-    setConversations([newConversation, ...conversations]);
-    setActiveConversation(newConversation.id);
-
-    // Create the conversation in the backend
-    try {
-      const response = await axios.post(`${BACKEND_URL}/api/convo/create`, {
-        userId: localStorage.getItem('userId'),
-        title: newConversation.title,
-      });
-      const data = response.data;
-      console.log(data);
-    } catch (error) {
-      console.error("Error creating conversation:", error);
-    }
+    // Instead of creating a conversation immediately, set the state to await first message
+    setAwaitingFirstMessage(true);
+    
+    // Generate a temporary ID for reference
+    const tempId = uuidv4();
+    setTempConversationId(tempId);
+    
+    // Clear active conversation selection
+    setActiveConversation("");
   };
 
   // Handle selecting a conversation
@@ -323,10 +540,10 @@ Reply here to get started, or click the little "chat" icon up top to make a new 
   };
 
   const handleDeleteConversation = (id: string) => {
-    const filteredConversations = conversations.filter(
+    const filteredConversations = props.conversations.filter(
       (conv) => conv.id !== id,
     );
-    setConversations(filteredConversations);
+    props.setConversations(filteredConversations);
     if (
       activeConversation === id &&
       filteredConversations.length > 0
@@ -337,7 +554,7 @@ Reply here to get started, or click the little "chat" icon up top to make a new 
 
   // Handle changing the model for the current conversation
   const handleModelChange = (modelId: string) => {
-    const updatedConversations = conversations.map((conv) => {
+    const updatedConversations = props.conversations.map((conv) => {
       if (conv.id === activeConversation) {
         return {
           ...conv,
@@ -347,7 +564,7 @@ Reply here to get started, or click the little "chat" icon up top to make a new 
       return conv;
     });
 
-    setConversations(updatedConversations);
+    props.setConversations(updatedConversations);
   };
   
   // Cancel streaming response
@@ -394,10 +611,10 @@ Reply here to get started, or click the little "chat" icon up top to make a new 
       )}
       <div className={`fixed md:relative z-20 h-full transition-all duration-300 ease-in-out ${isSidebarOpen ? 'w-[260px]' : 'w-0 overflow-hidden'}`}>
         <ConversationSidebar 
-          conversations={conversations.map((conv) => ({
+          conversations={props.conversations.map((conv) => ({
             id: conv.id,
             title: conv.title,
-            date: conv.timestamp.toLocaleDateString(),
+            date: conv.updatedAt.toLocaleDateString,
             model: conv.model,
             selected: conv.id === activeConversation
           }))}
@@ -425,25 +642,34 @@ Reply here to get started, or click the little "chat" icon up top to make a new 
           />
         </div>
         <div className="flex-1 overflow-hidden mb-4">
-          <Messages
-            messages={currentConversation.messages}
-            currentModel={currentConversation.model}
-            models={models}
-            onModelChange={handleModelChange}
-            isLoading={isLoading}
-            selectedText={selectedText}
-            setSelectedText={setSelectedText}
-            streamingResponse={aiResponse}
-            onReplyWithContext={handleReplyWithContext}
-          />
+          {!awaitingFirstMessage ? (
+            <Messages
+              messages={currentConversation?.messages.messages || []}
+              currentModel={currentConversation?.model || "gpt-4o"}
+              models={models}
+              onModelChange={handleModelChange}
+              isLoading={isLoading}
+              selectedText={selectedText}
+              setSelectedText={setSelectedText}
+              streamingResponse={aiResponse}
+              onReplyWithContext={handleReplyWithContext}
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <h3 className="text-xl font-medium mb-2">New Conversation</h3>
+              <p className="text-muted-foreground max-w-md">
+                Type your first message below to start a new conversation
+              </p>
+            </div>
+          )}
         </div>
         <MessageInput
-        selectedContext={selectedText}
-        onSendMessage={handleSendMessage}
-        isLoading={isLoading}
-        placeholder="Type a message or ask a question..."
-      />
+          selectedContext={selectedText}
+          onSendMessage={handleSendMessage}
+          isLoading={isLoading}
+          placeholder={awaitingFirstMessage ? "Type your first message..." : "Type a message or ask a question..."}
+        />
+      </div>
     </div>
-  </div>
-);
+  );
 };
