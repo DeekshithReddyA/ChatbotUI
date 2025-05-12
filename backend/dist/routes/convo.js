@@ -155,21 +155,21 @@ const createDefaultChat = (userId) => __awaiter(void 0, void 0, void 0, function
         {
             id: `${chatId}-2`,
             content: `### TARS Chat is the all in one AI Chat. 
-
-1. **Blazing Fast, Model-Packed.**  
-    We're not just fast — we're **2x faster than ChatGPT**, **10x faster than DeepSeek**. With **20+ models** (Claude, DeepSeek, ChatGPT-4o, and more), you'll always have the right AI for the job — and new ones arrive *within hours* of launch.
-
-2. **Flexible Payments.**  
-   Tired of rigid subscriptions? TARS Chat lets you choose *your* way to pay.  
-   • Just want occasional access? Buy credits that last a full **year**.  
-   • Want unlimited vibes? Subscribe for **$10/month** and get **2,000+ messages**.
-
-3. **No Credit Card? No Problem.**  
-   Unlike others, we welcome everyone.  
-   **UPI, debit cards, net banking, credit cards — all accepted.**  
-   Students, you're not locked out anymore.
-
-Reply here to get started, or click the little "chat" icon up top to make a new chat. Or you can [check out the FAQ](/chat/faq)`,
+  
+  1. **Blazing Fast, Model-Packed.**  
+      We're not just fast — we're **2x faster than ChatGPT**, **10x faster than DeepSeek**. With **20+ models** (Claude, DeepSeek, ChatGPT-4o, and more), you'll always have the right AI for the job — and new ones arrive *within hours* of launch.
+  
+  2. **Flexible Payments.**  
+     Tired of rigid subscriptions? TARS Chat lets you choose *your* way to pay.  
+     • Just want occasional access? Buy credits that last a full **year**.  
+     • Want unlimited vibes? Subscribe for **$10/month** and get **2,000+ messages**.
+  
+  3. **No Credit Card? No Problem.**  
+     Unlike others, we welcome everyone.  
+     **UPI, debit cards, net banking, credit cards — all accepted.**  
+     Students, you're not locked out anymore.
+  
+  Reply here to get started, or click the little "chat" icon up top to make a new chat. Or you can [check out the FAQ](/chat/faq)`,
             sender: "ai",
             timestamp: new Date("2023-06-15T14:29:00").toISOString(),
             model: "gpt-4",
