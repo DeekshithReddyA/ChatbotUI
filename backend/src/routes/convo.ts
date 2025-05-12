@@ -24,7 +24,7 @@ export const client = new S3Client({
   }
 });
 
-export const BUCKET_NAME = process.env.BUCKET_NAME!;
+export const BUCKET_NAME = process.env.BUCKET!;
 
 const getPresignedUrl = async (bucketName: string, fileName: string) => {
     const getObjectCommand = new GetObjectCommand({

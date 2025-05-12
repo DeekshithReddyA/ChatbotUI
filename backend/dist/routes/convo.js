@@ -34,7 +34,7 @@ exports.client = new client_s3_1.S3Client({
         secretAccessKey: secretKey,
     }
 });
-exports.BUCKET_NAME = 'tarsai.convo';
+exports.BUCKET_NAME = process.env.BUCKET;
 const getPresignedUrl = (bucketName, fileName) => __awaiter(void 0, void 0, void 0, function* () {
     const getObjectCommand = new client_s3_1.GetObjectCommand({
         Bucket: bucketName,
