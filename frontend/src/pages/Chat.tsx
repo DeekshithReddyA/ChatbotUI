@@ -1,58 +1,53 @@
 import { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { ChatInterface } from "../components/ChatInterface";
 import axios from "axios";
 import { supabase } from "../../supabaseClient";
 import { LoadingSpinner } from "../components/LoadingSpinner";
-import { useNavigate } from "react-router-dom";
 
-export const Home = () => {
+export const Chat = () => {
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [conversations, setConversations] = useState([]);
   const [models, setModels] = useState([]);
   const navigate = useNavigate();
+  const { id } = useParams(); // Get conversation ID from URL
 
   // Function to handle conversation deletion
-  const handleDeleteConversation = async (id: string) => {
+  const handleDeleteConversation = async (conversationId: string) => {
     try {
       // First remove from local state (optimistic update)
       setConversations((prevConversations) => 
-        prevConversations.filter((conv: any) => conv.id !== id)
+        prevConversations.filter((conv: any) => conv.id !== conversationId)
       );
+      
+      // If we're deleting the current conversation, navigate to home
+      if (conversationId === id) {
+        navigate('/');
+      }
       
       // Then make the API call to delete on the server
       const userId = localStorage.getItem('userId');
-      await axios.delete(`${BACKEND_URL}/api/convo/${id}`, {
+      await axios.delete(`${BACKEND_URL}/api/convo/${conversationId}`, {
         headers: { 'userId': userId }
       });
       
-      console.log(`Conversation ${id} successfully deleted`);
+      console.log(`Conversation ${conversationId} successfully deleted`);
     } catch (error) {
-      console.error(`Error deleting conversation ${id}:`, error);
+      console.error(`Error deleting conversation ${conversationId}:`, error);
       
       // If there's an error, reload the conversations to ensure UI is in sync
       const userId = localStorage.getItem('userId');
       try {
-        const response = await axios.get(`${BACKEND_URL}/api/convo/list?limit=10`, {
+        const response = await axios.get(`${BACKEND_URL}/api/user/get`, {
           headers: { 'userId': userId }
         });
-        setConversations(response.data || []);
+        setConversations(response.data.conversationsWithMessages || []);
       } catch (reloadError) {
         console.error("Error reloading conversations:", reloadError);
       }
     }
-  };
-
-  // Function to navigate to a specific conversation
-  const handleSelectConversation = (id: string) => {
-    navigate(`/chat/${id}`);
-  };
-
-  // Create a handleNewConversation function to ensure proper initialization
-  const handleNewConversation = () => {
-    // When starting a new conversation from Home, just reset the UI and navigate to root
-    navigate('/');
   };
 
   useEffect(() => {
@@ -82,6 +77,33 @@ export const Home = () => {
         console.log("Conversations loaded:", response.data);
         setConversations(response.data || []);
         
+        // If we have a conversation ID in the URL, fetch that specific conversation
+        if (id) {
+          try {
+            const conversationResponse = await axios.get(`${BACKEND_URL}/api/convo/${id}`, {
+              headers: { 'userId': userId }
+            });
+            
+            if (conversationResponse.data) {
+              // Update or add the specific conversation with its messages
+              setConversations(prevConversations => {
+                const existingIndex = prevConversations.findIndex(c => c.id === id);
+                if (existingIndex >= 0) {
+                  // Replace existing conversation with full data
+                  const updatedConversations = [...prevConversations];
+                  updatedConversations[existingIndex] = conversationResponse.data;
+                  return updatedConversations;
+                } else {
+                  // Add this conversation to the list
+                  return [...prevConversations, conversationResponse.data];
+                }
+              });
+            }
+          } catch (conversationError) {
+            console.error(`Error fetching conversation ${id}:`, conversationError);
+          }
+        }
+        
         // Load models
         const modelsResponse = await axios.get(`${BACKEND_URL}/api/models`, {
           headers: { 'userId': userId }
@@ -97,7 +119,7 @@ export const Home = () => {
     };
 
     loadUserData();
-  }, [BACKEND_URL, navigate]);
+  }, [BACKEND_URL, navigate, id]);
 
   const handleRetry = () => {
     setError(null);
@@ -124,18 +146,16 @@ export const Home = () => {
   return (
     <div className="min-h-screen bg-background text-foreground">
       {isLoading ? 
-        <LoadingSpinner message="Loading your dashboard..." /> : 
+        <LoadingSpinner message="Loading your conversation..." /> : 
         <ChatInterface 
           conversations={conversations} 
           models={models} 
           setConversations={setConversations} 
           setModels={setModels}
           onDeleteConversation={handleDeleteConversation}
-          onSelectConversation={handleSelectConversation}
-          onNewConversation={handleNewConversation}
-          isLandingPage={true}
+          activeConversationId={id}
         />
       }
     </div>
   );
-};
+}; 

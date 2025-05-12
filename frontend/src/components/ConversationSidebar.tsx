@@ -4,9 +4,9 @@ import { PlusIcon } from "./icons/PlusIcon"
 import { Button } from "./ui/Button"
 import { Settings2Icon } from "./icons/Settings2Icon";
 import { BadgeIcon } from "./icons/BadgeIcon";
-import { TrashIcon, XIcon } from "lucide-react";
+import { TrashIcon, XIcon, Loader2 } from "lucide-react";
 import { cn } from "../lib/utils";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 interface ConversationSidebarProps {
     conversations: any[];  // Need to change this type to Conversation[] type        
@@ -15,10 +15,28 @@ interface ConversationSidebarProps {
     activeConversation: string;
     onSelectConversation: (id: string) => void;
     onDeleteConversation: (id: string) => void;
+    isLoadingMore?: boolean;
+    hasMore?: boolean;
+    onLoadMore?: () => void;
 }
+
 export const ConversationSidebar = (props: ConversationSidebarProps) => {
     const [hoveredId, setHoveredId] = useState<string | null>(null);
-
+    const scrollAreaRef = useRef<HTMLDivElement>(null);
+    
+    // Handle scroll to detect when user reached the bottom
+    const handleScroll = (e: any) => {
+        const scrollElement = e.currentTarget;
+        
+        // Check if we're near the bottom (within 100px)
+        const isNearBottom = 
+            scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight < 100;
+            
+        // Load more conversations if near bottom and more are available
+        if (isNearBottom && props.hasMore && !props.isLoadingMore && props.onLoadMore) {
+            props.onLoadMore();
+        }
+    };
 
     return(
         <div className="flex flex-col h-full w-full border-r border-border/40 bg-card">
@@ -54,8 +72,7 @@ export const ConversationSidebar = (props: ConversationSidebarProps) => {
                 </div>
             </div>
             {/* Conversations List */} 
-            {/* Need to implement this */}
-            <ScrollArea className="flex-1 px-2">
+            <ScrollArea className="flex-1 px-2" ref={scrollAreaRef} onScroll={handleScroll}>
                 <div className="space-y-1 py-2">
                     {props.conversations.map((conversation) => {
                         const isActive = props.activeConversation === conversation.id || conversation.selected;
@@ -102,6 +119,13 @@ export const ConversationSidebar = (props: ConversationSidebarProps) => {
                           </div>
                         )
                     })}
+                    
+                    {/* Loading indicator */}
+                    {props.isLoadingMore && (
+                        <div className="flex justify-center py-3">
+                            <Loader2 className="h-5 w-5 animate-spin text-accent" />
+                        </div>
+                    )}
                 </div>
             </ScrollArea>
             

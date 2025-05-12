@@ -9,6 +9,7 @@ import { Button } from "./ui/Button";
 import { AIModel } from "../types/AIModel";
 import axios from "axios";
 import { v4 as uuidv4 } from 'uuid';
+import { useNavigate } from "react-router-dom";
 
 interface Message {
   id: string;
@@ -37,69 +38,38 @@ interface ChatInterfaceProps {
   models: AIModel[];
   setConversations: any;
   setModels: any;
+  onDeleteConversation?: (id: string) => void;
+  onSelectConversation?: (id: string) => void;
+  onNewConversation?: () => void;
+  activeConversationId?: string;
+  isLandingPage?: boolean;
 }
 
 export const ChatInterface = (props: ChatInterfaceProps) => {
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-  // Mock data for conversations
-//   const [conversations, setConversations] = useState<Conversation[]>([
-//     {
-//       id: "1",
-//       title: "Welcome to TARS Chat",
-//       lastMessage:
-//         "What about a recipe app that uses AI to suggest meals based on ingredients?",
-//       timestamp: new Date("2023-06-15T14:30:00"),
-//       model: "gpt-4",
-//       messages: [
-//         {
-//           id: "1-1",
-//           content: "What is TARS Chat?",
-//           sender: "user",
-//           timestamp: new Date("2023-06-15T14:28:00"),
-//         },
-//         {
-//           id: "1-2",
-//           content:
-//             `### TARS Chat is the all in one AI Chat. 
+  const navigate = useNavigate();
 
-// 1. **Blazing Fast, Model-Packed.**\n 
-//     We're not just fast — we're **2x faster than ChatGPT**, **10x faster than DeepSeek**. With **20+ models** (Claude, DeepSeek, ChatGPT-4o, and more), you'll always have the right AI for the job — and new ones arrive *within hours* of launch.
-
-// 2. **Flexible Payments.**\n
-//    Tired of rigid subscriptions? TARS Chat lets you choose *your* way to pay.\n
-//    • Just want occasional access? Buy credits that last a full **year**.\n
-//    • Want unlimited vibes? Subscribe for **$10/month** and get **2,000+ messages**.
-
-// 3. **No Credit Card? No Problem.**\n
-//    Unlike others, we welcome everyone.
-//    **UPI, debit cards, net banking, credit cards — all accepted.**
-//    Students, you're not locked out anymore.
-
-
-
-
-// Reply here to get started, or click the little "chat" icon up top to make a new chat. Or you can [check out the FAQ](/chat/faq)`,
-//           sender: "ai",
-//           timestamp: new Date("2023-06-15T14:29:00"),
-//           model: "gpt-4",
-//         },
-        
-//       ],
-//     },
-//   ]);
-
-
+  // State for conversation pagination
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(1);
+  
   const [activeConversation, setActiveConversation] = useState<string>(
-    props.conversations[0].id,
+    props.activeConversationId || (props.conversations.length > 0 ? props.conversations[0].id : "")
   );
   
+  useEffect(() => {
+    // Update active conversation when prop changes
+    if (props.activeConversationId) {
+      setActiveConversation(props.activeConversationId);
+    }
+  }, [props.activeConversationId]);
+  
   // New state variable to track if we're awaiting the first message in a new conversation
-  const [awaitingFirstMessage, setAwaitingFirstMessage] = useState(false);
+  const [awaitingFirstMessage, setAwaitingFirstMessage] = useState(props.isLandingPage || false);
   // Temporary conversation ID to use before backend sync
   const [tempConversationId, setTempConversationId] = useState<string | null>(null);
-
-  const [models, setModels] = useState<AIModel[]>([]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [selectedText, setSelectedText] = useState<string>("");
@@ -110,6 +80,9 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
   const streamSource = useRef<SSE | null>(null);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  // For loading a specific conversation
+  const [isLoadingConversation, setIsLoadingConversation] = useState(false);
 
   // Check screen size on initial render and when window resizes
   useEffect(() => {
@@ -132,26 +105,111 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
 
-  // Has to be converted to request models along with the user data.
-  // Next task 
-  useEffect(() => {
-    const fetchModels = async () => {
-      const response = await axios.get(`${BACKEND_URL}/api/models`,{
-        headers: {
-          'userId': `${localStorage.getItem('userId')}`,
-        },
+  // Function to load more conversations when scrolling
+  const loadMoreConversations = async () => {
+    if (isLoadingMore || !hasMore) return;
+    
+    const userId = localStorage.getItem('userId');
+    if (!userId) return;
+    
+    setIsLoadingMore(true);
+    try {
+      const nextPage = page + 1;
+      const response = await axios.get(`${BACKEND_URL}/api/convo/list?page=${nextPage}&limit=10`, {
+        headers: { 'userId': userId }
       });
-      const data = response.data;
-      setModels(data);
-    };
-    fetchModels();
-  }, []);
+      
+      const newConversations = response.data;
+      if (newConversations && newConversations.length > 0) {
+        props.setConversations((prevConversations: Conversation[]) => [...prevConversations, ...newConversations]);
+        setPage(nextPage);
+      } else {
+        setHasMore(false);
+      }
+    } catch (error) {
+      console.error("Error loading more conversations:", error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  // Function to load a specific conversation's messages
+  const loadConversationMessages = async (conversationId: string) => {
+    if (!conversationId) return;
+    
+    // Check if we already have the conversation with messages loaded
+    const existingConvo = props.conversations.find(c => c.id === conversationId);
+    if (existingConvo && existingConvo.messages && existingConvo.messages.messages.length > 0) {
+      // Already loaded
+      return;
+    }
+    
+    const userId = localStorage.getItem('userId');
+    if (!userId) return;
+    
+    setIsLoadingConversation(true);
+    try {
+      const response = await axios.get(`${BACKEND_URL}/api/convo/${conversationId}`, {
+        headers: { 'userId': userId }
+      });
+      
+      if (response.data) {
+        // Update the conversation in the list with the fetched messages
+        props.setConversations((prevConversations: Conversation[]) => 
+          prevConversations.map(conv => 
+            conv.id === conversationId ? response.data : conv
+          )
+        );
+      }
+    } catch (error) {
+      console.error(`Error loading conversation ${conversationId}:`, error);
+      
+      // Try to retrieve from localStorage as a fallback
+      try {
+        const savedConvo = localStorage.getItem(`convo_${conversationId}`);
+        if (savedConvo) {
+          const convoData = JSON.parse(savedConvo);
+          console.log("Retrieving conversation data from localStorage:", convoData);
+          
+          // If we have an existing conversation record but no messages, add the messages from localStorage
+          const existingConvo = props.conversations.find(c => c.id === conversationId);
+          if (existingConvo) {
+            props.setConversations((prevConversations: Conversation[]) => 
+              prevConversations.map(conv => {
+                if (conv.id === conversationId) {
+                  return {
+                    ...conv,
+                    messages: {
+                      id: conversationId,
+                      title: conv.title,
+                      messages: convoData.messages || []
+                    }
+                  };
+                }
+                return conv;
+              })
+            );
+          }
+        }
+      } catch (localStorageError) {
+        console.error("Error retrieving from localStorage:", localStorageError);
+      }
+    } finally {
+      setIsLoadingConversation(false);
+    }
+  };
+
+  // Load conversation messages when active conversation changes
+  useEffect(() => {
+    if (activeConversation && !awaitingFirstMessage) {
+      loadConversationMessages(activeConversation);
+    }
+  }, [activeConversation]);
 
   // Find the current active conversation
   const currentConversation = awaitingFirstMessage 
     ? null
-    : props.conversations.find((conv) => conv.id === activeConversation) ||
-      props.conversations[0];
+    : props.conversations.find((conv) => conv.id === activeConversation);
 
   console.log("Current conversation: ", currentConversation);
 
@@ -247,7 +305,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
         }];
         
         // Create a new SSE connection for a new conversation
-        streamSource.current = new SSE("http://localhost:3000/api/chat", {
+        streamSource.current = new SSE(`${BACKEND_URL}/api/chat`, {
           headers: {
             "Content-Type": "application/json",
             // Don't pass conversationId for new conversations yet, as it doesn't exist on backend
@@ -323,11 +381,83 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
                       return conv;
                     })
                   );
+                  
+                  // Store the conversation data in localStorage as a fallback
+                  try {
+                    const convoData = {
+                      id: backendId,
+                      title: title,
+                      messages: [
+                        { id: `${backendId}-1`, content: messageContent, sender: "user", timestamp: new Date().toISOString() },
+                        { id: `${backendId}-2`, content: accumulatedResponse, sender: "ai", timestamp: new Date().toISOString(), model: "gpt-4o" }
+                      ]
+                    };
+                    localStorage.setItem(`convo_${backendId}`, JSON.stringify(convoData));
+                  } catch (err) {
+                    console.error("Error storing conversation in localStorage:", err);
+                  }
+                  
                   setActiveConversation(backendId);
+                  
+                  // Update URL with the new conversation ID
+                  navigate(`/chat/${backendId}`);
                 }
               })
               .catch(error => {
                 console.error("Error creating conversation in backend:", error);
+                
+                // Try to save locally in case the backend is failing
+                try {
+                  const localConvoData = {
+                    id: tempId,
+                    title: title,
+                    messages: [
+                      { id: `${tempId}-1`, content: messageContent, sender: "user", timestamp: new Date().toISOString() },
+                      { id: `${tempId}-2`, content: accumulatedResponse, sender: "ai", timestamp: new Date().toISOString(), model: "gpt-4o" }
+                    ]
+                  };
+                  localStorage.setItem(`convo_${tempId}`, JSON.stringify(localConvoData));
+                  
+                  // Try again after a short delay (backend might still be starting up)
+                  setTimeout(() => {
+                    axios.post(`${BACKEND_URL}/api/convo/create`, {
+                      userId: localStorage.getItem('userId'),
+                      title: title,
+                      firstMessage: messageContent,
+                      aiResponse: accumulatedResponse,
+                      model: "gpt-4o"
+                    })
+                    .then(retryResponse => {
+                      console.log("Retry successful, conversation created:", retryResponse.data);
+                      const { id: retryBackendId } = retryResponse.data;
+                      if (retryBackendId) {
+                        // Update the URL to use the new ID
+                        navigate(`/chat/${retryBackendId}`);
+                        // Update the conversation ID in state
+                        props.setConversations((prevConversations: Conversation[]) => 
+                          prevConversations.map(conv => {
+                            if (conv.id === tempId) {
+                              return {
+                                ...conv,
+                                id: retryBackendId,
+                                messages: {
+                                  ...conv.messages,
+                                  id: retryBackendId
+                                }
+                              };
+                            }
+                            return conv;
+                          })
+                        );
+                      }
+                    })
+                    .catch(retryError => {
+                      console.error("Retry failed:", retryError);
+                    });
+                  }, 2000); // 2-second delay before retry
+                } catch (localSaveError) {
+                  console.error("Failed to save conversation locally:", localSaveError);
+                }
               });
             
             setIsLoading(false);
@@ -437,7 +567,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
       });
 
       // Create a new SSE connection for existing conversation
-      streamSource.current = new SSE("http://localhost:3000/api/chat", {
+      streamSource.current = new SSE(`${BACKEND_URL}/api/chat`, {
         headers: {
           "Content-Type": "application/json",
           "conversationid": currentConversation.id, // Pass the conversation ID
@@ -522,7 +652,14 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
     }
   };
 
-  const handleNewConversation = async () => {
+  const handleNewConversation = () => {
+    // If external handler is provided, use it
+    if (props.onNewConversation) {
+      props.onNewConversation();
+      return;
+    }
+    
+    // Otherwise, default behavior
     // Instead of creating a conversation immediately, set the state to await first message
     setAwaitingFirstMessage(true);
     
@@ -532,25 +669,76 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
     
     // Clear active conversation selection
     setActiveConversation("");
+    
+    // Update URL to root for new conversation
+    navigate('/');
   };
 
   // Handle selecting a conversation
   const handleSelectConversation = (id: string) => {
     setActiveConversation(id);
+    
+    // If using the external handler for routing
+    if (props.onSelectConversation) {
+      props.onSelectConversation(id);
+    } else {
+      // Direct navigation
+      navigate(`/chat/${id}`);
+    }
   };
 
   const handleDeleteConversation = (id: string) => {
+    // If an external handler is provided, use it
+    if (props.onDeleteConversation) {
+      props.onDeleteConversation(id);
+      return;
+    }
+    
+    // Otherwise use the internal implementation
+    // Optimistically remove from UI
     const filteredConversations = props.conversations.filter(
       (conv) => conv.id !== id,
     );
     props.setConversations(filteredConversations);
-    if (
-      activeConversation === id &&
-      filteredConversations.length > 0
-    ) {
-      setActiveConversation(filteredConversations[0].id);
+    
+    // Set active conversation to another one if the deleted was active
+    if (activeConversation === id) {
+      if (filteredConversations.length > 0) {
+        setActiveConversation(filteredConversations[0].id);
+        navigate(`/chat/${filteredConversations[0].id}`);
+      } else {
+        setAwaitingFirstMessage(true);
+        setActiveConversation("");
+        navigate('/');
+      }
     }
-  }
+    
+    // Make API call to delete the conversation on the server
+    axios.delete(`${BACKEND_URL}/api/convo/${id}`, {
+      headers: {
+        'userId': localStorage.getItem('userId'),
+      }
+    })
+    .then(response => {
+      console.log(`Conversation ${id} successfully deleted on server`);
+    })
+    .catch(error => {
+      console.error(`Error deleting conversation ${id} on server:`, error);
+      // If there's an error, revert the UI change by reloading the conversations
+      // This is optional and could be handled differently
+      axios.get(`${BACKEND_URL}/api/convo/list`, {
+        headers: {
+          'userId': localStorage.getItem('userId'),
+        }
+      })
+      .then(response => {
+        props.setConversations(response.data);
+      })
+      .catch(listError => {
+        console.error("Error reloading conversations:", listError);
+      });
+    });
+  };
 
   // Handle changing the model for the current conversation
   const handleModelChange = (modelId: string) => {
@@ -623,6 +811,9 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
           onCloseSidebar={toggleSidebar}
           onDeleteConversation={handleDeleteConversation}
           activeConversation={activeConversation}
+          isLoadingMore={isLoadingMore}
+          hasMore={hasMore}
+          onLoadMore={loadMoreConversations}
         />
       </div>
       <div className="flex flex-col flex-1 h-full p-1 bg-background">
@@ -637,16 +828,25 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
             <MenuIcon size={20} />
           </Button>
           <ModelSelector 
-            models={models}
-            setModels={setModels}
+            models={props.models}
+            setModels={props.setModels}
+            currentModel={currentConversation?.model}
+            onModelChange={handleModelChange}
           />
         </div>
         <div className="flex-1 overflow-hidden mb-4">
-          {!awaitingFirstMessage ? (
+          {isLoadingConversation ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <div className="w-10 h-10 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Loading conversation...</p>
+              </div>
+            </div>
+          ) : !awaitingFirstMessage ? (
             <Messages
               messages={currentConversation?.messages.messages || []}
               currentModel={currentConversation?.model || "gpt-4o"}
-              models={models}
+              models={props.models}
               onModelChange={handleModelChange}
               isLoading={isLoading}
               selectedText={selectedText}

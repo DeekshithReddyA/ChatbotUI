@@ -30,5 +30,7 @@ export interface TooltipProps {
 
 export interface ModelSelectorProps {
     models: AIModel[];
-    setModels: any
+    setModels: any;
+    currentModel?: string;
+    onModelChange?: (modelId: string) => void;
   }

@@ -24,7 +24,7 @@ export const client = new S3Client({
   }
 });
 
-export const BUCKET_NAME = process.env.BUCKET_NAME as string;
+export const BUCKET_NAME = 'tarsai.convo';
 
 const getPresignedUrl = async (bucketName: string, fileName: string) => {
     const getObjectCommand = new GetObjectCommand({
@@ -213,8 +213,11 @@ Reply here to get started, or click the little "chat" icon up top to make a new 
 // Get all conversations for a user with recent messages
 convoRouter.get('/list', async (req, res) => {
     const userId = req.headers['userid'] as string;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const page = parseInt(req.query.page as string) || 1;
+    const skip = (page - 1) * limit;
     
-    console.log(`Fetching conversations for user: ${userId}`);
+    console.log(`Fetching conversations for user: ${userId}, page: ${page}, limit: ${limit}`);
     
     if (!userId) {
         console.log('Missing userId in request');
@@ -236,111 +239,23 @@ convoRouter.get('/list', async (req, res) => {
 
         console.log(`Found user: ${user.id} (${user.name})`);
 
-        // Get the most recent 15 conversations for the user
+        // Get paginated conversations for the user
         const conversations = await prisma.conversation.findMany({
             where: { userId: user.id },
             orderBy: { updatedAt: 'desc' },
-            take: 15 // Limit to recent 15 conversations
+            skip,
+            take: limit
         });
 
-        console.log(`Found ${conversations.length} conversations for user ${userId}`);
+        // Get total count for pagination info
+        const totalCount = await prisma.conversation.count({
+            where: { userId: user.id }
+        });
+
+        console.log(`Found ${conversations.length} conversations for user ${userId} (page ${page}/${Math.ceil(totalCount / limit)})`);
 
         // For each conversation, fetch messages from S3
-        const conversationsWithMessages = await Promise.all(conversations.map(async (convo) => {
-            try {
-                console.log(`Processing conversation: ${convo.id} - ${convo.title}`);
-                
-                // Extract bucket and key from fileUrl
-                const url = new URL(convo.fileUrl);
-                const temp = url.pathname.split('/');
-                const bucket = temp[4];
-                const key = temp[5];
-                
-                console.log(`Getting object from bucket: ${bucket}, key: ${key}`);
-                
-                // Fetch messages from S3
-                const getObjectCommand = new GetObjectCommand({ 
-                    Bucket: bucket, 
-                    Key: key 
-                });
-                
-                const response = await client.send(getObjectCommand);
-                if (!response.Body) {
-                    throw new Error('Empty file content');
-                }
-                
-                const bodyContents = await streamToString(response.Body as NodeJS.ReadableStream);
-                console.log(`Retrieved content of length: ${bodyContents.length}`);
-                
-                // Parse messages safely
-                let messages = [];
-                try {
-                    messages = JSON.parse(bodyContents);
-                    if (!Array.isArray(messages)) {
-                        console.error(`File content is not an array: ${bodyContents.substring(0, 100)}...`);
-                        messages = []; // Reset to empty array if not valid
-                    }
-                } catch (error) {
-                    console.error(`Error parsing messages JSON: ${error}, content: ${bodyContents.substring(0, 100)}...`);
-                    messages = []; // Reset to empty array if parsing failed
-                }
-                
-                console.log(`Parsed ${messages.length} messages for conversation ${convo.id}`);
-                
-                // Generate a new presigned URL if needed
-                const fileUrl = await getPresignedUrl(bucket, key);
-                
-                // Update the URL in the database if it changed
-                if (fileUrl !== convo.fileUrl) {
-                    console.log(`Updating fileUrl for conversation ${convo.id}`);
-                    await prisma.conversation.update({
-                        where: { id: convo.id },
-                        data: { fileUrl }
-                    });
-                }
-
-                // Get last message for preview
-                const lastMessage = messages.length > 0 
-                    ? messages[messages.length - 1] 
-                    : null;
-                
-                // Find the model from most recent AI message
-                const aiMessages = messages.filter((msg: any) => msg.sender === "ai");
-                const model = aiMessages.length > 0 
-                    ? aiMessages[aiMessages.length - 1].model 
-                    : "gpt-4o"; // Default model
-
-                console.log(`Successfully processed conversation ${convo.id}`);
-                
-                return {
-                    ...convo,
-                    fileUrl,
-                    messages: {
-                        id: convo.id,
-                        title: convo.title,
-                        messages: messages
-                    },
-                    lastMessage: lastMessage 
-                        ? { content: lastMessage.content, sender: lastMessage.sender }
-                        : null,
-                    model
-                };
-            } catch (error) {
-                console.error(`Error fetching messages for conversation ${convo.id}:`, error);
-                // Return the conversation without messages if there's an error
-                return {
-                    ...convo,
-                    messages: {
-                        id: convo.id,
-                        title: convo.title,
-                        messages: []
-                    },
-                    lastMessage: null,
-                    model: "gpt-4o", // Default model
-                    error: `Failed to fetch messages: ${error instanceof Error ? error.message : 'Unknown error'}`
-                };
-            }
-        }));
+        const conversationsWithMessages = await fetchMessagesFromS3(conversations);
 
         console.log(`Returning ${conversationsWithMessages.length} conversations with messages`);
         res.status(200).json(conversationsWithMessages);
@@ -350,107 +265,74 @@ convoRouter.get('/list', async (req, res) => {
     }
 });
 
-// // Get a single conversation and its messages
-// convoRouter.get('/:id', async (req, res) => {
-//     const { id } = req.params;
-//     console.log(`Fetching conversation: ${id}`);
+// Get a single conversation and its messages
+convoRouter.get('/:id', async (req, res) => {
+    const { id } = req.params;
+    const userId = req.headers['userid'] as string;
     
-//     try {
-//         // Get the conversation
-//         const conversation = await prisma.conversation.findUnique({
-//             where: { id }
-//         });
+    console.log(`Fetching conversation: ${id}`);
+    
+    if (!userId) {
+        console.log('Missing userId in request');
+        res.status(400).json({ error: 'User ID is required' });
+        return;
+    }
 
-//         if (!conversation) {
-//             console.log(`Conversation ${id} not found`);
-//             res.status(404).json({ error: 'Conversation not found' });
-//             return;
-//         }
+    try {
+        // First find the user in the database
+        const user = await prisma.user.findUnique({
+            where: { userId }
+        });
 
-//         console.log(`Found conversation: ${JSON.stringify(conversation)}`);
+        if (!user) {
+            console.log(`User not found: ${userId}`);
+            res.status(404).json({ error: 'User not found' });
+            return;
+        }
 
-//         try {
-//             // Extract bucket and key from fileUrl
-//             const url = new URL(conversation.fileUrl);
-//             const bucket = url.pathname.split('/')[1];
-//             const key = decodeURIComponent(url.pathname.split('/').slice(2).join('/'));
-            
-//             console.log(`Retrieving S3 file from bucket: ${bucket}, key: ${key}`);
-            
-//             // Fetch messages from S3
-//             const getObjectCommand = new GetObjectCommand({ Bucket: bucket, Key: key });
-//             const response = await client.send(getObjectCommand);
-            
-//             if (!response.Body) {
-//                 console.error(`No body in S3 response for ${bucket}/${key}`);
-//                 throw new Error('Empty file content');
-//             }
-            
-//             const bodyContents = await streamToString(response.Body as NodeJS.ReadableStream);
-//             console.log(`Received file contents of length: ${bodyContents.length}`);
-            
-//             // Parse the messages array safely
-//             let messages = [];
-//             try {
-//                 messages = JSON.parse(bodyContents);
-//                 if (!Array.isArray(messages)) {
-//                     console.error(`File content is not an array: ${bodyContents.substring(0, 100)}...`);
-//                     messages = []; // Reset to empty array if not valid
-//                 }
-//             } catch (error) {
-//                 console.error(`Error parsing messages JSON: ${error}, content: ${bodyContents.substring(0, 100)}...`);
-//                 messages = []; // Reset to empty array if parsing failed
-//             }
-            
-//             console.log(`Parsed ${messages.length} messages for conversation ${id}`);
+        // Get the conversation and verify it belongs to the user
+        const conversation = await prisma.conversation.findFirst({
+            where: { 
+                id,
+                userId: user.id 
+            }
+        });
 
-//             // Refresh the URL and update if needed
-//             const fileUrl = await getPresignedUrl(bucket, key);
-//             if (fileUrl !== conversation.fileUrl) {
-//                 console.log(`Updating fileUrl for conversation ${id}`);
-//                 await prisma.conversation.update({
-//                     where: { id },
-//                     data: { fileUrl }
-//                 });
-//                 conversation.fileUrl = fileUrl;
-//             }
+        if (!conversation) {
+            console.log(`Conversation ${id} not found or doesn't belong to user ${userId}`);
+            res.status(404).json({ error: 'Conversation not found or not authorized' });
+            return;
+        }
 
-//             // Get last message for preview
-//             const lastMessage = messages.length > 0 
-//                 ? messages[messages.length - 1] 
-//                 : null;
-            
-//             // Find the model from most recent AI message
-//             const aiMessages = messages.filter((msg: any) => msg.sender === "ai");
-//             const model = aiMessages.length > 0 
-//                 ? aiMessages[aiMessages.length - 1].model 
-//                 : "gpt-4o"; // Default model
+        console.log(`Found conversation: ${id} - ${conversation.title}`);
 
-//             res.status(200).json({
-//                 ...conversation,
-//                 messages,
-//                 lastMessage: lastMessage 
-//                     ? { content: lastMessage.content, sender: lastMessage.sender }
-//                     : null,
-//                 model
-//             });
-//         } catch (error) {
-//             console.error(`Error getting messages for conversation ${id}:`, error);
+        // Fetch messages from S3
+        try {
+            const [conversationWithMessages] = await fetchMessagesFromS3([conversation]);
+            console.log(`Successfully fetched messages for conversation ${id}`);
             
-//             // Return the conversation at least, even if we couldn't get the messages
-//             res.status(200).json({
-//                 ...conversation,
-//                 messages: [],
-//                 error: `Failed to get messages: ${error instanceof Error ? error.message : 'Unknown error'}`,
-//                 lastMessage: null,
-//                 model: "gpt-4o" // Default model
-//             });
-//         }
-//     } catch (error) {
-//         console.error(`Error getting conversation ${id}:`, error);
-//         res.status(500).json({ error: 'Failed to get conversation', details: error instanceof Error ? error.message : error });
-//     }
-// });
+            res.status(200).json(conversationWithMessages);
+        } catch (error) {
+            console.error(`Error fetching messages for conversation ${id}:`, error);
+            
+            // Return the conversation at least, even if we couldn't get the messages
+            res.status(200).json({
+                ...conversation,
+                messages: {
+                    id: conversation.id,
+                    title: conversation.title,
+                    messages: []
+                },
+                error: `Failed to get messages: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                lastMessage: null,
+                model: "gpt-4o" // Default model
+            });
+        }
+    } catch (error) {
+        console.error(`Error getting conversation ${id}:`, error);
+        res.status(500).json({ error: 'Failed to get conversation', details: error instanceof Error ? error.message : error });
+    }
+});
 
 convoRouter.post('/create', async (req, res) => {
     const { userId, title, firstMessage, aiResponse, model } = req.body;
@@ -461,14 +343,36 @@ convoRouter.post('/create', async (req, res) => {
     }
 
     try {
-        // Ensure user exists before creating conversation to avoid foreign key violation
-        const user = await prisma.user.findUnique({
+        // Find or create the user
+        let user = await prisma.user.findUnique({
             where: { userId }
         });
+        
+        // If the user doesn't exist, create them
         if (!user) {
-            res.status(400).json({ error: 'User does not exist' });
-            return;
+            console.log(`User ${userId} not found, creating a new user`);
+            try {
+                user = await prisma.user.create({
+                    data: { 
+                        userId,
+                        name: 'Anonymous User',
+                        isPro: false,
+                        messagesLeft: 5,
+                        pinnedModels: { 
+                            create: {
+                                models: []
+                            }
+                        }
+                    }
+                });
+                console.log(`User created with ID: ${user.id}`);
+            } catch (userCreateError) {
+                console.error("Error creating user:", userCreateError);
+                res.status(500).json({ error: 'Failed to create user', details: userCreateError instanceof Error ? userCreateError.message : userCreateError });
+                return;
+            }
         }
+        
         const chatId = uuidv4();
         
         // Prepare initial messages if provided
@@ -502,37 +406,57 @@ convoRouter.post('/create', async (req, res) => {
         }
         
         // 1. Upload conversation data to S3
-        const fileName = `${user.id}/${chatId}.json`;
-        const fileContent = JSON.stringify(initialMessages);
-        console.log(`Creating new conversation file: ${fileName} with content length: ${fileContent.length}`);
-        
-        const putCommand = new PutObjectCommand({
-            Bucket: BUCKET_NAME,
-            Key: fileName,
-            Body: fileContent,
-            ContentType: 'application/json',
-        });
-        
-        await client.send(putCommand);
-        console.log(`Successfully created file in S3: ${BUCKET_NAME}/${fileName}`);
+        try {
+            const fileName = `${user.id}/${chatId}.json`;
+            const fileContent = JSON.stringify(initialMessages);
+            console.log(`Creating new conversation file: ${fileName} with content length: ${fileContent.length}`);
+            console.log(`Using bucket: ${BUCKET_NAME}`);
+            
+            const putCommand = new PutObjectCommand({
+                Bucket: BUCKET_NAME,
+                Key: fileName,
+                Body: fileContent,
+                ContentType: 'application/json',
+            });
+            
+            await client.send(putCommand);
+            console.log(`Successfully created file in S3: ${BUCKET_NAME}/${fileName}`);
 
-        // Generate a presigned URL for access
-        const fileUrl = await getPresignedUrl(BUCKET_NAME, fileName);
-        console.log(`Generated presigned URL: ${fileUrl}`);
+            // Generate a presigned URL for access
+            const fileUrl = await getPresignedUrl(BUCKET_NAME, fileName);
+            console.log(`Generated presigned URL: ${fileUrl}`);
 
-        // Create the conversation with the fileUrl
-        const conversation = await prisma.conversation.create({
-            data: {
-                id: chatId,
-                userId: user.id,
-                title: title as string,
-                fileUrl
-            }
-        });
-        
-        console.log(`Created conversation in database: ${JSON.stringify(conversation)}`);
+            // Create the conversation with the fileUrl
+            const conversation = await prisma.conversation.create({
+                data: {
+                    id: chatId,
+                    userId: user.id,
+                    title: title as string,
+                    fileUrl,
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                }
+            });
+            
+            console.log(`Created conversation in database: ${JSON.stringify(conversation)}`);
 
-        res.status(201).json(conversation);
+            // Return the complete conversation data including messages
+            const conversationWithMessages = {
+                ...conversation,
+                messages: {
+                    id: chatId,
+                    title: title,
+                    messages: initialMessages
+                },
+                lastMessage: aiResponse ? aiResponse.substring(0, 50) + (aiResponse.length > 50 ? "..." : "") : firstMessage,
+                model: model || "gpt-4o"
+            };
+
+            res.status(201).json(conversationWithMessages);
+        } catch (s3Error) {
+            console.error("Error with S3 operation:", s3Error);
+            res.status(500).json({ error: 'S3 Storage Error', details: s3Error instanceof Error ? s3Error.message : s3Error });
+        }
     } catch (error) {
         console.error(`Error creating conversation: ${error instanceof Error ? error.message : error}`);
         res.status(500).json({ error: 'Failed to create conversation', details: error instanceof Error ? error.message : error });
@@ -542,27 +466,73 @@ convoRouter.post('/create', async (req, res) => {
 // Delete a conversation
 convoRouter.delete('/:id', async (req, res) => {
     const { id } = req.params;
-    console.log(`Deleting conversation: ${id}`);
+    const userId = req.headers['userid'] as string;
+    
+    console.log(`Request to delete conversation: ${id}`);
+    
+    if (!userId) {
+        console.log('Missing userId in delete request');
+        res.status(400).json({ error: 'User ID is required' });
+        return;
+    }
     
     try {
-        // Find the conversation
-        const conversation = await prisma.conversation.findUnique({
-            where: { id }
+        // First verify the user exists
+        const user = await prisma.user.findUnique({
+            where: { userId }
+        });
+        
+        if (!user) {
+            console.log(`User not found: ${userId}`);
+            res.status(404).json({ error: 'User not found' });
+            return;
+        }
+        
+        // Find the conversation and make sure it belongs to the user
+        const conversation = await prisma.conversation.findFirst({
+            where: { 
+                id,
+                userId: user.id
+            }
         });
 
         if (!conversation) {
-            console.log(`Conversation ${id} not found for deletion`);
-            res.status(404).json({ error: 'Conversation not found' });
+            console.log(`Conversation ${id} not found for deletion or doesn't belong to user ${userId}`);
+            res.status(404).json({ error: 'Conversation not found or not authorized' });
             return;
         }
 
-        console.log(`Found conversation to delete: ${JSON.stringify(conversation)}`);
+        console.log(`Found conversation to delete: ${conversation.id} (${conversation.title})`);
 
-        // Delete the S3 file first (url : userId/chatId.json)
+        // Delete the S3 file first
+        let fileDeleted = false;
+        
         try {
+            if (!conversation.fileUrl) {
+                console.error(`Missing fileUrl for conversation ${id}`);
+                throw new Error('Missing fileUrl');
+            }
+            
+            // Extract bucket and key from fileUrl using the same approach as fetchMessagesFromS3
             const url = new URL(conversation.fileUrl);
-            const bucket = url.pathname.split('/')[1];
-            const key = decodeURIComponent(url.pathname.split('/').slice(2).join('/'));
+            if (!url || !url.pathname) {
+                console.error(`Invalid fileUrl for conversation ${id}: ${conversation.fileUrl}`);
+                throw new Error('Invalid fileUrl');
+            }
+            
+            const temp = url.pathname.split('/');
+            if (temp.length < 7) {
+                console.error(`Unexpected fileUrl format for conversation ${id}: ${conversation.fileUrl}`);
+                throw new Error('Unexpected fileUrl format');
+            }
+            
+            const bucket = temp[4]; // Match format used in fetchMessagesFromS3
+            const key = temp[5] + '/' + temp[6]; // Match format used in fetchMessagesFromS3
+            
+            if (!bucket || !key) {
+                console.error(`Could not extract bucket or key from fileUrl: ${conversation.fileUrl}`);
+                throw new Error('Could not extract bucket or key');
+            }
             
             console.log(`Deleting S3 file at bucket: ${bucket}, key: ${key}`);
             
@@ -573,6 +543,7 @@ convoRouter.delete('/:id', async (req, res) => {
             
             await client.send(deleteCommand);
             console.log(`Successfully deleted S3 file: ${bucket}/${key}`);
+            fileDeleted = true;
         } catch (error) {
             console.error(`Error deleting S3 file for conversation ${id}:`, error);
             // Continue with database deletion even if S3 deletion fails
@@ -580,14 +551,21 @@ convoRouter.delete('/:id', async (req, res) => {
 
         // Delete the conversation from the database
         await prisma.conversation.delete({
-            where: { id }
+            where: { id: conversation.id }
         });
         console.log(`Successfully deleted conversation ${id} from database`);
 
-        res.status(200).json({ success: true, message: 'Conversation deleted' });
+        res.status(200).json({ 
+            success: true, 
+            message: 'Conversation deleted', 
+            fileDeleted 
+        });
     } catch (error) {
         console.error(`Error deleting conversation ${id}:`, error);
-        res.status(500).json({ error: 'Failed to delete conversation', details: error instanceof Error ? error.message : error });
+        res.status(500).json({ 
+            error: 'Failed to delete conversation', 
+            details: error instanceof Error ? error.message : 'Unknown error'
+        });
     }
 });
 
@@ -681,3 +659,144 @@ export const appendMessage = async (id: string, content: string, sender: string,
         return { error: 'Failed to process message', details: error?.message || error };
     }
 };
+
+// Debug endpoint to check if a conversation file exists in S3
+convoRouter.get('/:id/check-file', async (req, res) => {
+    const { id } = req.params;
+    const userId = req.headers['userid'] as string;
+    
+    console.log(`Checking file existence for conversation: ${id}`);
+    
+    if (!userId) {
+        res.status(400).json({ error: 'User ID is required' });
+        return;
+    }
+    
+    try {
+        // Verify the user exists
+        const user = await prisma.user.findUnique({
+            where: { userId }
+        });
+        
+        if (!user) {
+            res.status(404).json({ error: 'User not found' });
+            return;
+        }
+        
+        // Find the conversation
+        const conversation = await prisma.conversation.findFirst({
+            where: { 
+                id,
+                userId: user.id
+            }
+        });
+
+        if (!conversation) {
+            res.status(404).json({ error: 'Conversation not found or not authorized' });
+            return;
+        }
+        
+        // Check the file in S3
+        try {
+            if (!conversation.fileUrl) {
+                res.status(400).json({ error: 'Missing fileUrl', conversation });
+                return;
+            }
+            
+            const url = new URL(conversation.fileUrl);
+            if (!url || !url.pathname) {
+                res.status(400).json({ error: 'Invalid fileUrl', fileUrl: conversation.fileUrl, conversation });
+                return;
+            }
+            
+            const temp = url.pathname.split('/');
+            if (temp.length < 7) {
+                res.status(400).json({ error: 'Unexpected fileUrl format', fileUrl: conversation.fileUrl, pathParts: temp });
+                return;
+            }
+            
+            const bucket = temp[4];
+            const key = temp[5] + '/' + temp[6];
+            
+            if (!bucket || !key) {
+                res.status(400).json({ error: 'Could not extract bucket or key', fileUrl: conversation.fileUrl });
+                return;
+            }
+            
+            // Check if the file exists
+            try {
+                const headCommand = new GetObjectCommand({
+                    Bucket: bucket,
+                    Key: key
+                });
+                
+                const response = await client.send(headCommand);
+                
+                res.status(200).json({
+                    exists: true,
+                    conversation,
+                    bucket,
+                    key,
+                    contentLength: response.ContentLength,
+                    contentType: response.ContentType
+                });
+                
+            } catch (error) {
+                res.status(404).json({
+                    exists: false,
+                    conversation,
+                    bucket,
+                    key,
+                    error: error instanceof Error ? error.message : 'Unknown error'
+                });
+            }
+            
+        } catch (error) {
+            res.status(500).json({
+                error: 'Error processing fileUrl',
+                fileUrl: conversation.fileUrl,
+                details: error instanceof Error ? error.message : 'Unknown error'
+            });
+        }
+        
+    } catch (error) {
+        res.status(500).json({
+            error: 'Server error',
+            details: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
+// Helper function to parse S3 file path from fileUrl
+function parseS3PathFromFileUrl(fileUrl: string): { bucket: string, key: string } | null {
+    try {
+        console.log(`Parsing S3 path from fileUrl: ${fileUrl}`);
+        
+        const url = new URL(fileUrl);
+        console.log(`Parsed URL: ${url.toString()}`);
+        console.log(`URL pathname: ${url.pathname}`);
+        
+        const temp = url.pathname.split('/');
+        console.log(`Path parts: ${JSON.stringify(temp)}`);
+        
+        if (temp.length < 7) {
+            console.error(`URL path does not have enough segments: ${url.pathname}`);
+            return null;
+        }
+        
+        const bucket = temp[4];
+        const key = temp[5] + '/' + temp[6];
+        
+        console.log(`Extracted bucket: ${bucket}, key: ${key}`);
+        
+        if (!bucket || !key) {
+            console.error(`Failed to extract bucket or key from path parts: ${JSON.stringify(temp)}`);
+            return null;
+        }
+        
+        return { bucket, key };
+    } catch (error) {
+        console.error(`Error parsing S3 path from fileUrl: ${error}`);
+        return null;
+    }
+}

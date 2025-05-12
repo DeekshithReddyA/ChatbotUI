@@ -1,20 +1,26 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { Home } from "./pages/Home";
 import { ProtectedRoute } from "./pages/ProtectedRoute";
+import { Chat } from "./pages/Chat";
 
 function App() {
    
     return (
       <Router>
-      <Routes>
+        <Routes>
           <Route path="/" element={
             <ProtectedRoute>
               <Home />
             </ProtectedRoute>
-              } />
-      </Routes>
-    </Router>
-  )
+          } />
+          <Route path="/chat/:id" element={
+            <ProtectedRoute>
+              <Chat />
+            </ProtectedRoute>
+          } />
+        </Routes>
+      </Router>
+    )
 }
 
 export default App

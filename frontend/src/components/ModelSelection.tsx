@@ -12,7 +12,7 @@ import axios from "axios";
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 // Component for model selector dropdown
-const ModelSelector: React.FC<ModelSelectorProps> = ({models, setModels}) => {
+const ModelSelector: React.FC<ModelSelectorProps> = ({models, setModels, currentModel, onModelChange}) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [gridView, setGridView] = useState(true);
   const [selectedModel, setSelectedModel] = useState<AIModel | null>(null);
@@ -22,6 +22,15 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({models, setModels}) => {
   const [hoveredModel, setHoveredModel] = useState<AIModel | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
 
+  // Initialize the selected model based on current model prop
+  useEffect(() => {
+    if (currentModel && models.length > 0) {
+      const modelObj = models.find(m => m.id === currentModel);
+      if (modelObj) {
+        setSelectedModel(modelObj);
+      }
+    }
+  }, [currentModel, models]);
   
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -194,6 +203,10 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({models, setModels}) => {
   // Select a model
   const handleSelectModel = (model: AIModel) => {
     setSelectedModel(model);
+    // Call the onModelChange handler if provided
+    if (onModelChange) {
+      onModelChange(model.id);
+    }
     // On mobile, close dropdown after selection
     if (isMobile) {
       setIsExpanded(false);
