@@ -51,8 +51,9 @@ export async function fetchMessagesFromS3(conversations: Conversation[]) {
         
         // Extract bucket and key from fileUrl
         const url = new URL(convo.fileUrl);
-        const bucket = url.pathname.split('/')[1];
-        const key = decodeURIComponent(url.pathname.split('/').slice(2).join('/'));
+        const temp = url.pathname.split('/');
+        const bucket = temp[4];
+        const key = temp[5] + '/' + temp[6];
         
         console.log(`Getting object from bucket: ${bucket}, key: ${key}`);
         
@@ -131,6 +132,7 @@ export async function fetchMessagesFromS3(conversations: Conversation[]) {
         };
     }
     }));
+    return conversationsWithMessages;
 }
 
 
@@ -205,7 +207,7 @@ export const createDefaultChat = async (userId: string) => {
 
     const fileUrl = await getPresignedUrl(BUCKET_NAME, key);
 
-    return fileUrl;
+    return {fileUrl, chatId};
     
   };
 
@@ -252,8 +254,9 @@ convoRouter.get('/list', async (req, res) => {
                 
                 // Extract bucket and key from fileUrl
                 const url = new URL(convo.fileUrl);
-                const bucket = url.pathname.split('/')[1];
-                const key = decodeURIComponent(url.pathname.split('/').slice(2).join('/'));
+                const temp = url.pathname.split('/');
+                const bucket = temp[4];
+                const key = temp[5];
                 
                 console.log(`Getting object from bucket: ${bucket}, key: ${key}`);
                 
@@ -341,107 +344,107 @@ convoRouter.get('/list', async (req, res) => {
     }
 });
 
-// Get a single conversation and its messages
-convoRouter.get('/:id', async (req, res) => {
-    const { id } = req.params;
-    console.log(`Fetching conversation: ${id}`);
+// // Get a single conversation and its messages
+// convoRouter.get('/:id', async (req, res) => {
+//     const { id } = req.params;
+//     console.log(`Fetching conversation: ${id}`);
     
-    try {
-        // Get the conversation
-        const conversation = await prisma.conversation.findUnique({
-            where: { id }
-        });
+//     try {
+//         // Get the conversation
+//         const conversation = await prisma.conversation.findUnique({
+//             where: { id }
+//         });
 
-        if (!conversation) {
-            console.log(`Conversation ${id} not found`);
-            res.status(404).json({ error: 'Conversation not found' });
-            return;
-        }
+//         if (!conversation) {
+//             console.log(`Conversation ${id} not found`);
+//             res.status(404).json({ error: 'Conversation not found' });
+//             return;
+//         }
 
-        console.log(`Found conversation: ${JSON.stringify(conversation)}`);
+//         console.log(`Found conversation: ${JSON.stringify(conversation)}`);
 
-        try {
-            // Extract bucket and key from fileUrl
-            const url = new URL(conversation.fileUrl);
-            const bucket = url.pathname.split('/')[1];
-            const key = decodeURIComponent(url.pathname.split('/').slice(2).join('/'));
+//         try {
+//             // Extract bucket and key from fileUrl
+//             const url = new URL(conversation.fileUrl);
+//             const bucket = url.pathname.split('/')[1];
+//             const key = decodeURIComponent(url.pathname.split('/').slice(2).join('/'));
             
-            console.log(`Retrieving S3 file from bucket: ${bucket}, key: ${key}`);
+//             console.log(`Retrieving S3 file from bucket: ${bucket}, key: ${key}`);
             
-            // Fetch messages from S3
-            const getObjectCommand = new GetObjectCommand({ Bucket: bucket, Key: key });
-            const response = await client.send(getObjectCommand);
+//             // Fetch messages from S3
+//             const getObjectCommand = new GetObjectCommand({ Bucket: bucket, Key: key });
+//             const response = await client.send(getObjectCommand);
             
-            if (!response.Body) {
-                console.error(`No body in S3 response for ${bucket}/${key}`);
-                throw new Error('Empty file content');
-            }
+//             if (!response.Body) {
+//                 console.error(`No body in S3 response for ${bucket}/${key}`);
+//                 throw new Error('Empty file content');
+//             }
             
-            const bodyContents = await streamToString(response.Body as NodeJS.ReadableStream);
-            console.log(`Received file contents of length: ${bodyContents.length}`);
+//             const bodyContents = await streamToString(response.Body as NodeJS.ReadableStream);
+//             console.log(`Received file contents of length: ${bodyContents.length}`);
             
-            // Parse the messages array safely
-            let messages = [];
-            try {
-                messages = JSON.parse(bodyContents);
-                if (!Array.isArray(messages)) {
-                    console.error(`File content is not an array: ${bodyContents.substring(0, 100)}...`);
-                    messages = []; // Reset to empty array if not valid
-                }
-            } catch (error) {
-                console.error(`Error parsing messages JSON: ${error}, content: ${bodyContents.substring(0, 100)}...`);
-                messages = []; // Reset to empty array if parsing failed
-            }
+//             // Parse the messages array safely
+//             let messages = [];
+//             try {
+//                 messages = JSON.parse(bodyContents);
+//                 if (!Array.isArray(messages)) {
+//                     console.error(`File content is not an array: ${bodyContents.substring(0, 100)}...`);
+//                     messages = []; // Reset to empty array if not valid
+//                 }
+//             } catch (error) {
+//                 console.error(`Error parsing messages JSON: ${error}, content: ${bodyContents.substring(0, 100)}...`);
+//                 messages = []; // Reset to empty array if parsing failed
+//             }
             
-            console.log(`Parsed ${messages.length} messages for conversation ${id}`);
+//             console.log(`Parsed ${messages.length} messages for conversation ${id}`);
 
-            // Refresh the URL and update if needed
-            const fileUrl = await getPresignedUrl(bucket, key);
-            if (fileUrl !== conversation.fileUrl) {
-                console.log(`Updating fileUrl for conversation ${id}`);
-                await prisma.conversation.update({
-                    where: { id },
-                    data: { fileUrl }
-                });
-                conversation.fileUrl = fileUrl;
-            }
+//             // Refresh the URL and update if needed
+//             const fileUrl = await getPresignedUrl(bucket, key);
+//             if (fileUrl !== conversation.fileUrl) {
+//                 console.log(`Updating fileUrl for conversation ${id}`);
+//                 await prisma.conversation.update({
+//                     where: { id },
+//                     data: { fileUrl }
+//                 });
+//                 conversation.fileUrl = fileUrl;
+//             }
 
-            // Get last message for preview
-            const lastMessage = messages.length > 0 
-                ? messages[messages.length - 1] 
-                : null;
+//             // Get last message for preview
+//             const lastMessage = messages.length > 0 
+//                 ? messages[messages.length - 1] 
+//                 : null;
             
-            // Find the model from most recent AI message
-            const aiMessages = messages.filter((msg: any) => msg.sender === "ai");
-            const model = aiMessages.length > 0 
-                ? aiMessages[aiMessages.length - 1].model 
-                : "gpt-4o"; // Default model
+//             // Find the model from most recent AI message
+//             const aiMessages = messages.filter((msg: any) => msg.sender === "ai");
+//             const model = aiMessages.length > 0 
+//                 ? aiMessages[aiMessages.length - 1].model 
+//                 : "gpt-4o"; // Default model
 
-            res.status(200).json({
-                ...conversation,
-                messages,
-                lastMessage: lastMessage 
-                    ? { content: lastMessage.content, sender: lastMessage.sender }
-                    : null,
-                model
-            });
-        } catch (error) {
-            console.error(`Error getting messages for conversation ${id}:`, error);
+//             res.status(200).json({
+//                 ...conversation,
+//                 messages,
+//                 lastMessage: lastMessage 
+//                     ? { content: lastMessage.content, sender: lastMessage.sender }
+//                     : null,
+//                 model
+//             });
+//         } catch (error) {
+//             console.error(`Error getting messages for conversation ${id}:`, error);
             
-            // Return the conversation at least, even if we couldn't get the messages
-            res.status(200).json({
-                ...conversation,
-                messages: [],
-                error: `Failed to get messages: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                lastMessage: null,
-                model: "gpt-4o" // Default model
-            });
-        }
-    } catch (error) {
-        console.error(`Error getting conversation ${id}:`, error);
-        res.status(500).json({ error: 'Failed to get conversation', details: error instanceof Error ? error.message : error });
-    }
-});
+//             // Return the conversation at least, even if we couldn't get the messages
+//             res.status(200).json({
+//                 ...conversation,
+//                 messages: [],
+//                 error: `Failed to get messages: ${error instanceof Error ? error.message : 'Unknown error'}`,
+//                 lastMessage: null,
+//                 model: "gpt-4o" // Default model
+//             });
+//         }
+//     } catch (error) {
+//         console.error(`Error getting conversation ${id}:`, error);
+//         res.status(500).json({ error: 'Failed to get conversation', details: error instanceof Error ? error.message : error });
+//     }
+// });
 
 convoRouter.post('/create', async (req, res) => {
     const { userId, title } = req.body;
@@ -460,9 +463,9 @@ convoRouter.post('/create', async (req, res) => {
             res.status(400).json({ error: 'User does not exist' });
             return;
         }
-
+        const chatId = uuidv4();
         // 1. Upload empty array as JSON to S3 with the convo title as filename
-        const fileName = `${userId}-${Date.now()}-${title.replace(/[^a-zA-Z0-9]/g, '_')}.json`;
+        const fileName = `${user.id}/${chatId}.json`;
         const fileContent = JSON.stringify([]); // empty array
         console.log(`Creating new conversation file: ${fileName} with content: ${fileContent}`);
         
@@ -517,7 +520,7 @@ convoRouter.delete('/:id', async (req, res) => {
 
         console.log(`Found conversation to delete: ${JSON.stringify(conversation)}`);
 
-        // Delete the S3 file first
+        // Delete the S3 file first (url : userId/chatId.json)
         try {
             const url = new URL(conversation.fileUrl);
             const bucket = url.pathname.split('/')[1];
@@ -550,32 +553,10 @@ convoRouter.delete('/:id', async (req, res) => {
     }
 });
 
-// Send a message to a conversation
-convoRouter.post('/:id/send', async (req, res) => {
-    const { id } = req.params;
-    const { content, sender, model } = req.body;
-    const timestamp = new Date();
+export default convoRouter;
 
-    if (!content || !sender) {
-        res.status(400).json({ error: 'Content and sender are required' });
-        return;
-    }
-
-    try {
-        const result = await appendMessage(id, content, sender, timestamp, model);
-        if ('error' in result) {
-            res.status(404).json(result);
-        } else {
-            res.status(200).json(result);
-        }
-    } catch (error) {
-        console.error(`Error sending message to conversation ${id}:`, error);
-        res.status(500).json({ error: 'Failed to send message', details: error instanceof Error ? error.message : error });
-    }
-});
 
 // Append a message to a conversation (replace file)
-export default convoRouter;
 export const appendMessage = async (id: string, content: string, sender: string, timestamp: Date, model: string) => {
     console.log(`Starting appendMessage for conversation ${id}`);
     try {

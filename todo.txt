@@ -1,0 +1,12 @@
+// immediate things to do
+
+need to fix new Convo bug,
+new convos should be sent into userId bucket and they should be retrieved that way too.
+check delete convos
+
+// later things
+check conversation, messages, userData, models are fetched correctly for both new users and old users.
+Write tests for the backend so far.
+
+
+

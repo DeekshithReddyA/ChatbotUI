@@ -36,11 +36,11 @@ userRouter.post('/signup', async (req, res) => {
             }
         });
 
-        const fileUrl = await createDefaultChat(user.id);
+        const {fileUrl, chatId} = await createDefaultChat(user.id);
 
         const conversation = await prisma.conversation.create({
             data: {
-                id: uuidv4(),
+                id: chatId,
                 userId: user.id,
                 fileUrl: fileUrl,
                 title: "Welcome to TARS Chat",

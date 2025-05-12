@@ -15,7 +15,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const config_1 = __importDefault(require("../config"));
 const convo_1 = require("./convo");
-const uuid_1 = require("uuid");
 const userRouter = (0, express_1.Router)();
 userRouter.post('/signup', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { userId, name } = req.body;
@@ -44,10 +43,10 @@ userRouter.post('/signup', (req, res) => __awaiter(void 0, void 0, void 0, funct
                 }
             }
         });
-        const fileUrl = yield (0, convo_1.createDefaultChat)(user.id);
+        const { fileUrl, chatId } = yield (0, convo_1.createDefaultChat)(user.id);
         const conversation = yield config_1.default.conversation.create({
             data: {
-                id: (0, uuid_1.v4)(),
+                id: chatId,
                 userId: user.id,
                 fileUrl: fileUrl,
                 title: "Welcome to TARS Chat",
