@@ -9,7 +9,7 @@ export const Home = () => {
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [conversations, setConversations] = useState([]);
+  const [conversations, setConversations] = useState<any[]>([]);
   const [models, setModels] = useState([]);
   const navigate = useNavigate();
 
@@ -37,7 +37,10 @@ export const Home = () => {
         const response = await axios.get(`${BACKEND_URL}/api/convo/list?limit=10`, {
           headers: { 'userId': userId }
         });
-        setConversations(response.data || []);
+        // Ensure conversations are sorted by updatedAt in descending order
+        const sortedConversations = response.data ? 
+          [...response.data].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()) : [];
+        setConversations(sortedConversations);
       } catch (reloadError) {
         console.error("Error reloading conversations:", reloadError);
       }
@@ -80,7 +83,10 @@ export const Home = () => {
         });
         
         console.log("Conversations loaded:", response.data);
-        setConversations(response.data || []);
+        // Ensure conversations are sorted by updatedAt in descending order
+        const sortedConversations = response.data ? 
+          [...response.data].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()) : [];
+        setConversations(sortedConversations);
         
         // Load models
         const modelsResponse = await axios.get(`${BACKEND_URL}/api/models`, {

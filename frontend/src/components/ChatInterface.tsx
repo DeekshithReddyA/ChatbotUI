@@ -121,7 +121,14 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
       
       const newConversations = response.data;
       if (newConversations && newConversations.length > 0) {
-        props.setConversations((prevConversations: Conversation[]) => [...prevConversations, ...newConversations]);
+        props.setConversations((prevConversations: Conversation[]) => {
+          // Combine existing and new conversations
+          const combined = [...prevConversations, ...newConversations];
+          // Sort by updatedAt in descending order
+          return combined.sort((a, b) => 
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+          );
+        });
         setPage(nextPage);
       } else {
         setHasMore(false);

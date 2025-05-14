@@ -94,7 +94,11 @@ export async function fetchMessagesFromS3(conversations: Conversation[]) {
             console.log(`Updating fileUrl for conversation ${convo.id}`);
             await prisma.conversation.update({
                 where: { id: convo.id },
-                data: { fileUrl }
+                data: { 
+                    fileUrl,
+                    // Keep the original updatedAt timestamp to avoid affecting conversation order
+                    updatedAt: convo.updatedAt
+                }
             });
         }
 

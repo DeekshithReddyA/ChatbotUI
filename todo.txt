@@ -1,11 +1,7 @@
 // immediate things to do
-
-need to fix new Convo bug,
-new convos should be sent into userId bucket and they should be retrieved that way too.
-check delete convos
+fix the loading spinners and frontend bug on conversation sidebar (active after deleting the convo)
 
 // later things
-check conversation, messages, userData, models are fetched correctly for both new users and old users.
 Write tests for the backend so far.
 
 

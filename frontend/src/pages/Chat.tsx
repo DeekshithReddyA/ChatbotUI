@@ -9,7 +9,7 @@ export const Chat = () => {
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [conversations, setConversations] = useState([]);
+  const [conversations, setConversations] = useState<any[]>([]);
   const [models, setModels] = useState([]);
   const navigate = useNavigate();
   const { id } = useParams(); // Get conversation ID from URL
@@ -43,7 +43,12 @@ export const Chat = () => {
         const response = await axios.get(`${BACKEND_URL}/api/user/get`, {
           headers: { 'userId': userId }
         });
-        setConversations(response.data.conversationsWithMessages || []);
+        // Ensure conversations are sorted by updatedAt in descending order
+        const sortedConversations = response.data.conversationsWithMessages ? 
+          [...response.data.conversationsWithMessages].sort((a, b) => 
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+          ) : [];
+        setConversations(sortedConversations);
       } catch (reloadError) {
         console.error("Error reloading conversations:", reloadError);
       }
@@ -75,7 +80,10 @@ export const Chat = () => {
         });
         
         console.log("Conversations loaded:", response.data);
-        setConversations(response.data || []);
+        // Ensure conversations are sorted by updatedAt in descending order
+        const sortedConversations = response.data ? 
+          [...response.data].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()) : [];
+        setConversations(sortedConversations);
         
         // If we have a conversation ID in the URL, fetch that specific conversation
         if (id) {
@@ -88,15 +96,21 @@ export const Chat = () => {
               // Update or add the specific conversation with its messages
               setConversations(prevConversations => {
                 const existingIndex = prevConversations.findIndex(c => c.id === id);
+                let updatedConversations;
+                
                 if (existingIndex >= 0) {
                   // Replace existing conversation with full data
-                  const updatedConversations = [...prevConversations];
+                  updatedConversations = [...prevConversations];
                   updatedConversations[existingIndex] = conversationResponse.data;
-                  return updatedConversations;
                 } else {
                   // Add this conversation to the list
-                  return [...prevConversations, conversationResponse.data];
+                  updatedConversations = [...prevConversations, conversationResponse.data];
                 }
+                
+                // Sort by updatedAt in descending order to ensure consistent order
+                return updatedConversations.sort((a, b) => 
+                  new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+                );
               });
             }
           } catch (conversationError) {

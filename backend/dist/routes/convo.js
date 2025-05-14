@@ -95,7 +95,11 @@ function fetchMessagesFromS3(conversations) {
                     console.log(`Updating fileUrl for conversation ${convo.id}`);
                     yield config_1.default.conversation.update({
                         where: { id: convo.id },
-                        data: { fileUrl }
+                        data: {
+                            fileUrl,
+                            // Keep the original updatedAt timestamp to avoid affecting conversation order
+                            updatedAt: convo.updatedAt
+                        }
                     });
                 }
                 // Get last message for preview
