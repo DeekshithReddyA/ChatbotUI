@@ -4,9 +4,10 @@ import { PlusIcon } from "./icons/PlusIcon"
 import { Button } from "./ui/Button"
 import { Settings2Icon } from "./icons/Settings2Icon";
 import { BadgeIcon } from "./icons/BadgeIcon";
-import { TrashIcon, XIcon, Loader2 } from "lucide-react";
+import { TrashIcon, XIcon } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useState, useRef, useEffect } from "react";
+import { LoadingSpinner } from "./LoadingSpinner";
 
 interface ConversationSidebarProps {
     conversations: any[];  // Need to change this type to Conversation[] type        
@@ -21,9 +22,17 @@ interface ConversationSidebarProps {
 }
 
 // Helper to format message preview for conversation list
-const formatMessagePreview = (messageContent: string) => {
+const formatMessagePreview = (messageContent: string | any) => {
+    // Ensure messageContent is a string before using string methods
+    if (!messageContent) return 'New conversation';
+    
+    // Handle non-string types
+    if (typeof messageContent !== 'string') {
+        return 'New conversation';
+    }
+    
     // Check if the messageContent might be JSON content with attachments
-    if (messageContent && messageContent.startsWith('[{') && messageContent.endsWith('}]')) {
+    if (messageContent.startsWith('[{') && messageContent.endsWith('}]')) {
         try {
             const content = JSON.parse(messageContent);
             if (Array.isArray(content)) {
@@ -67,11 +76,12 @@ const formatMessagePreview = (messageContent: string) => {
     }
     
     // Default case: just return the messageContent truncated if needed
-    return messageContent && messageContent.length > 40 ? messageContent.substring(0, 40) + '...' : messageContent;
+    return messageContent.length > 40 ? messageContent.substring(0, 40) + '...' : messageContent;
 };
 
 export const ConversationSidebar = (props: ConversationSidebarProps) => {
     const [hoveredId, setHoveredId] = useState<string | null>(null);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
     const scrollAreaRef = useRef<HTMLDivElement>(null);
     
     // Handle scroll to detect when user reached the bottom
@@ -86,6 +96,18 @@ export const ConversationSidebar = (props: ConversationSidebarProps) => {
         if (isNearBottom && props.hasMore && !props.isLoadingMore && props.onLoadMore) {
             props.onLoadMore();
         }
+    };
+
+    // Handle delete with confirmation state
+    const handleDelete = (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setDeletingId(id);
+        props.onDeleteConversation(id);
+        
+        // Clear deleting state after a short delay
+        setTimeout(() => {
+            setDeletingId(null);
+        }, 300);
     };
 
     return(
@@ -124,8 +146,14 @@ export const ConversationSidebar = (props: ConversationSidebarProps) => {
             {/* Conversations List */} 
             <ScrollArea className="flex-1 px-2" ref={scrollAreaRef} onScroll={handleScroll}>
                 <div className="space-y-1 py-2">
-                    {props.conversations.map((conversation) => {
+                    {props.conversations.length === 0 ? (
+                        <div className="px-3 py-6 text-center text-muted-foreground text-sm">
+                            No conversations yet
+                        </div>
+                    ) : props.conversations.map((conversation) => {
                         const isActive = props.activeConversation === conversation.id || conversation.selected;
+                        const isDeleting = deletingId === conversation.id;
+                        
                         return(
                             <div
                             key={conversation.id}
@@ -146,34 +174,35 @@ export const ConversationSidebar = (props: ConversationSidebarProps) => {
                                   isActive && "text-accent",
                                 )}
                               >
-                                {conversation.title}
+                                {conversation.title || 'Untitled Conversation'}
                               </span>
                               <span className="truncate text-xs opacity-70 mt-0.5">
-                                {conversation.lastMessage && formatMessagePreview(conversation.lastMessage)}
+                                {formatMessagePreview(conversation.lastMessage)}
                               </span>
                             </div>
             
-                            {(hoveredId === conversation.id || isActive) && (
+                            {isDeleting ? (
+                                <div className="h-6 w-6 opacity-70">
+                                    <LoadingSpinner size="small" centered={false} />
+                                </div>
+                            ) : ((hoveredId === conversation.id || isActive) && (
                               <Button
                                 variant="ghost"
                                 size="icon"
                                 className="h-6 w-6 opacity-100 hover:bg-transparent hover:scale-110 hover:text-red-500 flex items-center justify-center"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  props.onDeleteConversation(conversation.id);
-                                }}
+                                onClick={(e) => handleDelete(conversation.id, e)}
                               >
                                 <TrashIcon size={14} />
                               </Button>
-                            )}
+                            ))}
                           </div>
                         )
                     })}
                     
                     {/* Loading indicator */}
                     {props.isLoadingMore && (
-                        <div className="flex justify-center py-3">
-                            <Loader2 className="h-5 w-5 animate-spin text-accent" />
+                        <div className="py-3">
+                            <LoadingSpinner size="small" message="Loading more..." centered={false} />
                         </div>
                     )}
                 </div>

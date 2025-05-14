@@ -28,6 +28,13 @@ export const Home = () => {
       });
       
       console.log(`Conversation ${id} successfully deleted`);
+      
+      // Navigate to home if there are no more conversations
+      // This ensures we don't get stuck on a deleted conversation
+      const remainingConversations = conversations.filter(conv => conv.id !== id);
+      if (remainingConversations.length === 0) {
+        navigate('/');
+      }
     } catch (error) {
       console.error(`Error deleting conversation ${id}:`, error);
       
@@ -43,6 +50,7 @@ export const Home = () => {
         setConversations(sortedConversations);
       } catch (reloadError) {
         console.error("Error reloading conversations:", reloadError);
+        setError("Failed to sync conversations. Please refresh the page.");
       }
     }
   };

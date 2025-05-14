@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useMemo, useCallback } from "react";
 import { ConversationSidebar } from "./ConversationSidebar"
 import MessageInput from "./MessageInput";
 import { Messages } from "./Messages";
@@ -106,8 +106,143 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
 
-  // Function to load more conversations when scrolling
-  const loadMoreConversations = async () => {
+  // Memoize the current conversation to reduce re-renders
+  const currentConversation = useMemo(() => {
+    return props.conversations.find((conv) => conv.id === activeConversation);
+  }, [props.conversations, activeConversation]);
+
+  // Memoize formatted conversation data for sidebar
+  const sidebarConversations = useMemo(() => {
+    return props.conversations.map((conv) => ({
+      id: conv.id,
+      title: conv.title || 'Untitled Conversation',
+      date: conv.updatedAt ? conv.updatedAt.toLocaleDateString : '',
+      model: conv.model || 'gpt-4o',
+      selected: conv.id === activeConversation,
+      lastMessage: conv.lastMessage || ''
+    }));
+  }, [props.conversations, activeConversation]);
+
+  // Cancel streaming response
+  const cancelStreaming = useCallback(() => {
+    if (streamSource.current) {
+      streamSource.current.close();
+      streamSource.current = null;
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Memoized callback for creating a new conversation
+  const handleNewConversation = useCallback(() => {
+    cancelStreaming();
+    
+    // Reset active state
+    setActiveConversation("");
+    setAwaitingFirstMessage(true);
+    
+    // If external handler provided, use it
+    if (props.onNewConversation) {
+      props.onNewConversation();
+    } else {
+      navigate('/');
+    }
+  }, [cancelStreaming, props.onNewConversation, navigate]);
+
+  // Memoized callback for selecting a conversation
+  const handleSelectConversation = useCallback((id: string) => {
+    setIsLoadingConversation(true);
+    
+    // Skip loading if we're already on this conversation
+    if (id === activeConversation) {
+      setIsLoadingConversation(false);
+      return;
+    }
+    
+    setActiveConversation(id);
+    
+    // Let external handler know of the selection if provided
+    if (props.onSelectConversation) {
+      props.onSelectConversation(id);
+    } else {
+      // Direct navigation
+      navigate(`/chat/${id}`);
+    }
+    
+    // Reset loading state after a short delay
+    setTimeout(() => {
+      setIsLoadingConversation(false);
+    }, 300);
+  }, [activeConversation, props.onSelectConversation, navigate]);
+
+  // Memoized callback for deleting a conversation
+  const handleDeleteConversation = useCallback((id: string) => {
+    // If an external handler is provided, use it
+    if (props.onDeleteConversation) {
+      props.onDeleteConversation(id);
+      
+      // Reset active state after deletion if this was the active conversation
+      if (activeConversation === id) {
+        setActiveConversation("");
+        setAwaitingFirstMessage(true);
+      }
+      return;
+    }
+    
+    // Otherwise use the internal implementation
+    // Optimistically remove from UI
+    const filteredConversations = props.conversations.filter(
+      (conv) => conv.id !== id,
+    );
+    props.setConversations(filteredConversations);
+    
+    // Set active conversation to another one if the deleted was active
+    if (activeConversation === id) {
+      if (filteredConversations.length > 0) {
+        const newActiveId = filteredConversations[0].id;
+        setActiveConversation(newActiveId);
+        navigate(`/chat/${newActiveId}`);
+      } else {
+        setAwaitingFirstMessage(true);
+        setActiveConversation("");
+        navigate('/');
+      }
+    }
+    
+    // Make API call to delete the conversation on the server
+    axios.delete(`${BACKEND_URL}/api/convo/${id}`, {
+      headers: {
+        'userId': localStorage.getItem('userId'),
+      }
+    })
+    .then(response => {
+      console.log(`Conversation ${id} successfully deleted on server`);
+    })
+    .catch(error => {
+      console.error(`Error deleting conversation ${id} on server:`, error);
+      // If there's an error, revert the UI change by reloading the conversations
+      axios.get(`${BACKEND_URL}/api/convo/list`, {
+        headers: {
+          'userId': localStorage.getItem('userId'),
+        }
+      })
+      .then(response => {
+        props.setConversations(response.data);
+        
+        // Re-evaluate the active conversation after reloading
+        if (activeConversation === id && response.data.length > 0) {
+          const newActiveId = response.data[0].id;
+          setActiveConversation(newActiveId);
+          navigate(`/chat/${newActiveId}`);
+        }
+      })
+      .catch(listError => {
+        console.error("Error reloading conversations:", listError);
+      });
+    });
+  }, [activeConversation, BACKEND_URL, navigate, props]);
+
+  // Memoized callback for loading more conversations
+  const loadMoreConversations = useCallback(async () => {
     if (isLoadingMore || !hasMore) return;
     
     const userId = localStorage.getItem('userId');
@@ -139,7 +274,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
     } finally {
       setIsLoadingMore(false);
     }
-  };
+  }, [isLoadingMore, hasMore, page, BACKEND_URL, props]);
 
   // Function to load a specific conversation's messages
   const loadConversationMessages = async (conversationId: string) => {
@@ -213,11 +348,6 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
       loadConversationMessages(activeConversation);
     }
   }, [activeConversation]);
-
-  // Find the current active conversation
-  const currentConversation = awaitingFirstMessage 
-    ? null
-    : props.conversations.find((conv) => conv.id === activeConversation);
 
   console.log("Current conversation: ", currentConversation);
 
@@ -840,94 +970,6 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
     }
   };
 
-  const handleNewConversation = () => {
-    // If external handler is provided, use it
-    if (props.onNewConversation) {
-      props.onNewConversation();
-      return;
-    }
-    
-    // Otherwise, default behavior
-    // Instead of creating a conversation immediately, set the state to await first message
-    setAwaitingFirstMessage(true);
-    
-    // Generate a temporary ID for reference
-    const tempId = uuidv4();
-    setTempConversationId(tempId);
-    
-    // Clear active conversation selection
-    setActiveConversation("");
-    
-    // Update URL to root for new conversation
-    navigate('/');
-  };
-
-  // Handle selecting a conversation
-  const handleSelectConversation = (id: string) => {
-    setActiveConversation(id);
-    
-    // If using the external handler for routing
-    if (props.onSelectConversation) {
-      props.onSelectConversation(id);
-    } else {
-      // Direct navigation
-      navigate(`/chat/${id}`);
-    }
-  };
-
-  const handleDeleteConversation = (id: string) => {
-    // If an external handler is provided, use it
-    if (props.onDeleteConversation) {
-      props.onDeleteConversation(id);
-      return;
-    }
-    
-    // Otherwise use the internal implementation
-    // Optimistically remove from UI
-    const filteredConversations = props.conversations.filter(
-      (conv) => conv.id !== id,
-    );
-    props.setConversations(filteredConversations);
-    
-    // Set active conversation to another one if the deleted was active
-    if (activeConversation === id) {
-      if (filteredConversations.length > 0) {
-        setActiveConversation(filteredConversations[0].id);
-        navigate(`/chat/${filteredConversations[0].id}`);
-      } else {
-        setAwaitingFirstMessage(true);
-        setActiveConversation("");
-        navigate('/');
-      }
-    }
-    
-    // Make API call to delete the conversation on the server
-    axios.delete(`${BACKEND_URL}/api/convo/${id}`, {
-      headers: {
-        'userId': localStorage.getItem('userId'),
-      }
-    })
-    .then(response => {
-      console.log(`Conversation ${id} successfully deleted on server`);
-    })
-    .catch(error => {
-      console.error(`Error deleting conversation ${id} on server:`, error);
-      // If there's an error, revert the UI change by reloading the conversations
-      // This is optional and could be handled differently
-      axios.get(`${BACKEND_URL}/api/convo/list`, {
-        headers: {
-          'userId': localStorage.getItem('userId'),
-        }
-      })
-      .then(response => {
-        props.setConversations(response.data);
-      })
-      .catch(listError => {
-        console.error("Error reloading conversations:", listError);
-      });
-    });
-  };
-
   // Handle changing the model for the current conversation
   const handleModelChange = (modelId: string) => {
     const updatedConversations = props.conversations.map((conv) => {
@@ -943,15 +985,6 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
     props.setConversations(updatedConversations);
   };
   
-  // Cancel streaming response
-  const cancelStreaming = () => {
-    if (streamSource.current) {
-      streamSource.current.close();
-      streamSource.current = null;
-      setIsLoading(false);
-    }
-  };
-
   // Stop streaming and save the response so far
   const stopStreaming = async () => {
     if (streamSource.current && isLoading && aiResponse) {
@@ -1185,13 +1218,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
       )}
       <div className={`fixed md:relative z-20 h-full transition-all duration-300 ease-in-out ${isSidebarOpen ? 'w-[260px]' : 'w-0 overflow-hidden'}`}>
         <ConversationSidebar 
-          conversations={props.conversations.map((conv) => ({
-            id: conv.id,
-            title: conv.title,
-            date: conv.updatedAt.toLocaleDateString,
-            model: conv.model,
-            selected: conv.id === activeConversation
-          }))}
+          conversations={sidebarConversations}
           onNewConversation={handleNewConversation}
           onSelectConversation={handleSelectConversation}
           onCloseSidebar={toggleSidebar}
