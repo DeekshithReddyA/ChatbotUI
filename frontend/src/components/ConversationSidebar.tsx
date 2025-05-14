@@ -20,6 +20,56 @@ interface ConversationSidebarProps {
     onLoadMore?: () => void;
 }
 
+// Helper to format message preview for conversation list
+const formatMessagePreview = (messageContent: string) => {
+    // Check if the messageContent might be JSON content with attachments
+    if (messageContent && messageContent.startsWith('[{') && messageContent.endsWith('}]')) {
+        try {
+            const content = JSON.parse(messageContent);
+            if (Array.isArray(content)) {
+                const textParts = content.filter(part => part.type === 'text');
+                const imageParts = content.filter(part => part.type === 'image');
+                const fileParts = content.filter(part => part.type === 'file');
+                
+                let preview = '';
+                
+                // Add text content if available
+                if (textParts.length > 0) {
+                    preview = textParts[0].text;
+                    if (preview.length > 30) {
+                        preview = preview.substring(0, 30) + '...';
+                    }
+                }
+                
+                // Add attachment indicators
+                if (imageParts.length > 0 || fileParts.length > 0) {
+                    const attachments = [];
+                    if (imageParts.length > 0) {
+                        attachments.push(`${imageParts.length} image${imageParts.length > 1 ? 's' : ''}`);
+                    }
+                    if (fileParts.length > 0) {
+                        attachments.push(`${fileParts.length} file${fileParts.length > 1 ? 's' : ''}`);
+                    }
+                    
+                    if (preview) {
+                        preview += ` [${attachments.join(', ')}]`;
+                    } else {
+                        preview = `[${attachments.join(', ')}]`;
+                    }
+                }
+                
+                return preview || 'New conversation';
+            }
+        } catch (e) {
+            // If JSON parsing fails, return the original string truncated
+            return messageContent.length > 40 ? messageContent.substring(0, 40) + '...' : messageContent;
+        }
+    }
+    
+    // Default case: just return the messageContent truncated if needed
+    return messageContent && messageContent.length > 40 ? messageContent.substring(0, 40) + '...' : messageContent;
+};
+
 export const ConversationSidebar = (props: ConversationSidebarProps) => {
     const [hoveredId, setHoveredId] = useState<string | null>(null);
     const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -98,9 +148,9 @@ export const ConversationSidebar = (props: ConversationSidebarProps) => {
                               >
                                 {conversation.title}
                               </span>
-                              {/* <span className="truncate text-xs opacity-70 mt-0.5">
-                                {conversation.model} • {conversation.date}
-                              </span> */}
+                              <span className="truncate text-xs opacity-70 mt-0.5">
+                                {conversation.lastMessage && formatMessagePreview(conversation.lastMessage)}
+                              </span>
                             </div>
             
                             {(hoveredId === conversation.id || isActive) && (

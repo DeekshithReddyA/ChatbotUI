@@ -13,7 +13,7 @@ import { useNavigate } from "react-router-dom";
 
 interface Message {
   id: string;
-  content: string;
+  content: string | any[]; // Allow either string or array of content parts
   sender: "user" | "ai";
   timestamp: Date;
   model?: string;
@@ -247,16 +247,163 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
     return titleWords.join(' ');
   };
 
+  // Function to check if a model supports image/file inputs
+  const supportsMultimodal = (modelId: string) => {
+    // Models that don't support images
+    const incompatibleModels = ['gpt-4', 'o3-mini', 'o3', 'o4-mini', 'o1-preview'];
+    return !incompatibleModels.includes(modelId);
+  };
+
+  // Function to convert a file to base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
+  };
+
+  // Function to resize and compress an image before upload
+  const optimizeImage = (file: File, maxWidth = 1200, maxHeight = 1200, quality = 0.8): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (e) => {
+        const img = new Image();
+        img.src = e.target?.result as string;
+        
+        img.onload = () => {
+          // Calculate new dimensions while maintaining aspect ratio
+          let width = img.width;
+          let height = img.height;
+          
+          if (width > height) {
+            if (width > maxWidth) {
+              height = Math.round(height * maxWidth / width);
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = Math.round(width * maxHeight / height);
+              height = maxHeight;
+            }
+          }
+          
+          // Create canvas and resize
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          
+          // Draw and compress image
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Could not get canvas context'));
+            return;
+          }
+          
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Convert to base64 with compression
+          const dataUrl = canvas.toDataURL(file.type, quality);
+          resolve(dataUrl);
+        };
+        
+        img.onerror = () => {
+          reject(new Error('Error loading image'));
+        };
+      };
+      reader.onerror = () => {
+        reject(new Error('Error reading file'));
+      };
+    });
+  };
+
   const handleSendMessage = async (content: string, files?: File[]) => {
     if (!content.trim() && (!files || files.length === 0)) return;
 
-    // Create message content with file information if present
-    let messageContent = content;
+    let messageContent: string | any[] = content;
+    
+    // Handle files if present and convert to multimodal format
     if (files && files.length > 0) {
-      const fileNames = files.map((file) => file.name).join(", ");
-      messageContent = content.trim()
-        ? `${content}\n\n[Attached: ${fileNames}]`
-        : `[Attached: ${fileNames}]`;
+      const messageContentParts: any[] = [];
+      
+      // Add text content if provided
+      if (content.trim()) {
+        messageContentParts.push({ type: 'text', text: content });
+      }
+      
+      // Process files and add them to content parts
+      const selectedModel = currentConversation?.model || "gpt-4o";
+      const isMultimodalSupported = supportsMultimodal(selectedModel);
+      
+      try {
+        // Check if model supports multimodal
+        if (isMultimodalSupported) {
+          // Process each file
+          for (const file of files) {
+            let base64Data;
+            
+            if (file.type.startsWith('image/')) {
+              // Optimize and resize images to avoid "request entity too large" errors
+              try {
+                base64Data = await optimizeImage(file, 1200, 1200, 0.7);
+              } catch (error) {
+                console.error("Error optimizing image:", error);
+                // Fallback to regular conversion if optimization fails
+                base64Data = await fileToBase64(file);
+              }
+              
+              // Handle image files
+              messageContentParts.push({
+                type: 'image',
+                image: base64Data
+              });
+            } else {
+              // For non-image files, limit size to 5MB to prevent payload issues
+              if (file.size > 5 * 1024 * 1024) {
+                console.warn(`File ${file.name} is too large (${Math.round(file.size/1024/1024)}MB), max size is 5MB`);
+                const fileErrorMessage = `[Error: File ${file.name} exceeds maximum size of 5MB]`;
+                if (messageContentParts.length > 0 && messageContentParts[0].type === 'text') {
+                  messageContentParts[0].text += `\n\n${fileErrorMessage}`;
+                } else {
+                  messageContentParts.unshift({ type: 'text', text: fileErrorMessage });
+                }
+                continue;
+              }
+              
+              // Handle other file types
+              base64Data = await fileToBase64(file);
+              messageContentParts.push({
+                type: 'file',
+                mimeType: file.type,
+                data: base64Data,
+                filename: file.name
+              });
+            }
+          }
+          
+          // Update the message content to use the parts array
+          messageContent = messageContentParts;
+        } else {
+          // If model doesn't support files, just append file names to the text
+          const fileNames = files.map(file => file.name).join(", ");
+          const fileDescription = `[Note: Attached files (${fileNames}) couldn't be processed with the selected model. Please switch to a multimodal model like gpt-4o to view images.]`;
+          
+          if (content.trim()) {
+            messageContent = `${content}\n\n${fileDescription}`;
+          } else {
+            messageContent = fileDescription;
+          }
+        }
+      } catch (error) {
+        console.error("Error processing files:", error);
+        // Fallback to text-only if there's an error with files
+        const fileNames = files.map(file => file.name).join(", ");
+        messageContent = content.trim() 
+          ? `${content}\n\n[Failed to process attached files: ${fileNames}]` 
+          : `[Failed to process attached files: ${fileNames}]`;
+      }
     }
 
     // Handle first message in a new conversation
@@ -265,12 +412,20 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
       const tempId = tempConversationId || uuidv4();
       
       // Create a title from the first few words of the message
-      const title = generateTitleFromMessage(messageContent);
+      const titleText = typeof messageContent === 'string' 
+        ? messageContent
+        : messageContent.find((part: any) => part.type === 'text')?.text || 'New Conversation with Images';
+      const title = generateTitleFromMessage(titleText);
+      
+      // For multimodal content, generate a preview for lastMessage
+      const lastMessagePreview = typeof messageContent === 'string' 
+        ? messageContent 
+        : getTextPreviewFromMultimodal(messageContent);
       
       // Create the message
       const newMessage: Message = {
         id: `${tempId}-1`,
-        content: messageContent,
+        content: typeof messageContent === 'string' ? messageContent : JSON.stringify(messageContent),
         sender: "user",
         timestamp: new Date(),
       };
@@ -279,7 +434,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
       const newConversation: Conversation = {
         id: tempId,
         title: title,
-        lastMessage: messageContent,
+        lastMessage: lastMessagePreview,
         createdAt: new Date(),
         updatedAt: new Date(),
         messages: {
@@ -342,17 +497,21 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
               model: "gpt-4o",
             };
             
+            console.log("AI Message Object", aiMessageObj);
             // Update the conversation with AI response
             props.setConversations((prevConversations: Conversation[]) => 
               prevConversations.map(conv => {
                 if (conv.id === tempId) {
+                  // Create a preview for the lastMessage
+                  const aiPreview = accumulatedResponse.substring(0, 50) + (accumulatedResponse.length > 50 ? "..." : "");
+                  
                   return {
                     ...conv,
                     messages: {
                       ...conv.messages,
                       messages: [...conv.messages.messages, aiMessageObj]
                     },
-                    lastMessage: accumulatedResponse.substring(0, 50) + (accumulatedResponse.length > 50 ? "..." : ""),
+                    lastMessage: aiPreview,
                     timestamp: new Date(),
                   };
                 }
@@ -364,7 +523,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
             axios.post(`${BACKEND_URL}/api/convo/create`, {
               userId: localStorage.getItem('userId'),
               title: title,
-              firstMessage: messageContent,
+              firstMessage: typeof messageContent === 'string' ? messageContent : JSON.stringify(messageContent),
               aiResponse: accumulatedResponse,
               model: "gpt-4o"
             })
@@ -395,7 +554,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
                       id: backendId,
                       title: title,
                       messages: [
-                        { id: `${backendId}-1`, content: messageContent, sender: "user", timestamp: new Date().toISOString() },
+                        { id: `${backendId}-1`, content: typeof messageContent === 'string' ? messageContent : JSON.stringify(messageContent), sender: "user", timestamp: new Date().toISOString() },
                         { id: `${backendId}-2`, content: accumulatedResponse, sender: "ai", timestamp: new Date().toISOString(), model: "gpt-4o" }
                       ]
                     };
@@ -419,7 +578,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
                     id: tempId,
                     title: title,
                     messages: [
-                      { id: `${tempId}-1`, content: messageContent, sender: "user", timestamp: new Date().toISOString() },
+                      { id: `${tempId}-1`, content: typeof messageContent === 'string' ? messageContent : JSON.stringify(messageContent), sender: "user", timestamp: new Date().toISOString() },
                       { id: `${tempId}-2`, content: accumulatedResponse, sender: "ai", timestamp: new Date().toISOString(), model: "gpt-4o" }
                     ]
                   };
@@ -430,7 +589,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
                     axios.post(`${BACKEND_URL}/api/convo/create`, {
                       userId: localStorage.getItem('userId'),
                       title: title,
-                      firstMessage: messageContent,
+                      firstMessage: typeof messageContent === 'string' ? messageContent : JSON.stringify(messageContent),
                       aiResponse: accumulatedResponse,
                       model: "gpt-4o"
                     })
@@ -526,7 +685,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
 
     const newMessage: Message = {
       id: `${currentConversation.id}-${currentConversation.messages.messages.length + 1}`,
-      content: messageContent,
+      content: typeof messageContent === 'string' ? messageContent : JSON.stringify(messageContent),
       sender: "user",
       timestamp: new Date(),
     };
@@ -534,13 +693,18 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
     // Update the conversation with the user message
     const updatedConversationsWithUserMessage = props.conversations.map((conv) => {
       if (conv.id === activeConversation) {
+        // Generate appropriate last message preview
+        const lastMessagePreview = typeof messageContent === 'string' 
+          ? messageContent 
+          : getTextPreviewFromMultimodal(messageContent);
+          
         return {
           ...conv,
           messages: {
             ...conv.messages,
             messages: [...conv.messages.messages, newMessage]
           },
-          lastMessage: messageContent,
+          lastMessage: lastMessagePreview,
           timestamp: new Date(),
         };
       }
@@ -562,10 +726,23 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
       }
 
       // Create an array of messages for the API
-      const messagesForAPI = currentConversation.messages.messages.map(msg => ({
-        role: msg.sender === "user" ? "user" : "assistant",
-        content: msg.content
-      }));
+      const messagesForAPI = currentConversation.messages.messages.map(msg => {
+        // If the content is a JSON string of multimodal content, parse it
+        let content = msg.content;
+        if (typeof content === 'string' && content.startsWith('[{') && content.endsWith('}]')) {
+          try {
+            content = JSON.parse(content);
+          } catch (e) {
+            // If parsing fails, just use the string as is
+            console.error("Error parsing message content:", e);
+          }
+        }
+        
+        return {
+          role: msg.sender === "user" ? "user" : "assistant",
+          content: content
+        };
+      });
       
       // Add the new user message
       messagesForAPI.push({
@@ -608,13 +785,16 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
           props.setConversations((prevConversations: Conversation[]) => 
             prevConversations.map(conv => {
               if (conv.id === activeConversation) {
+                // Create a preview for the lastMessage
+                const aiPreview = accumulatedResponse.substring(0, 50) + (accumulatedResponse.length > 50 ? "..." : "");
+                
                 return {
                   ...conv,
                   messages: {
                     ...conv.messages,
                     messages: [...conv.messages.messages, aiMessageObj]
                   },
-                  lastMessage: accumulatedResponse.substring(0, 50) + (accumulatedResponse.length > 50 ? "..." : ""),
+                  lastMessage: aiPreview,
                   timestamp: new Date(),
                 };
               }
@@ -792,6 +972,39 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
+  };
+
+  // Helper to extract text preview from multimodal content
+  const getTextPreviewFromMultimodal = (content: any[]): string => {
+    const textParts = content.filter(part => part.type === 'text');
+    const imageParts = content.filter(part => part.type === 'image');
+    const fileParts = content.filter(part => part.type === 'file');
+    
+    let preview = textParts.length > 0 ? textParts[0].text : '';
+    
+    // Truncate if too long
+    if (preview.length > 50) {
+      preview = preview.substring(0, 50) + '...';
+    }
+    
+    // Add attachment indicators
+    if (imageParts.length > 0 || fileParts.length > 0) {
+      const attachments = [];
+      if (imageParts.length > 0) {
+        attachments.push(`${imageParts.length} image${imageParts.length > 1 ? 's' : ''}`);
+      }
+      if (fileParts.length > 0) {
+        attachments.push(`${fileParts.length} file${fileParts.length > 1 ? 's' : ''}`);
+      }
+      
+      if (preview) {
+        preview += ` [${attachments.join(', ')}]`;
+      } else {
+        preview = `[${attachments.join(', ')}]`;
+      }
+    }
+    
+    return preview || 'New message';
   };
 
   return (

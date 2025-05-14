@@ -1,16 +1,8 @@
 import { Router } from "express";
 import prisma from "../config";
-import { createDefaultChat, fetchMessagesFromS3, client, BUCKET_NAME } from "./convo";
-import { v4 as uuidv4 } from "uuid";
+import { createDefaultChat, fetchMessagesFromS3, client } from "./convo";
 import { PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 const userRouter = Router();
-
-// Add S3 client configuration
-const supabaseUrl = process.env.endpoint_url!;
-const accessKey = process.env.aws_access_key_id!;
-const secretKey = process.env.aws_secret_access_key!;
-const region = process.env.region!;
 
 // Function to convert a readable stream to string
 function streamToString(stream: NodeJS.ReadableStream): Promise<string> {

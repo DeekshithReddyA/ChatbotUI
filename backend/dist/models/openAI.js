@@ -1,5 +1,4 @@
 "use strict";
-var __await = (this && this.__await) || function (v) { return this instanceof __await ? (this.v = v, this) : new __await(v); }
 var __asyncValues = (this && this.__asyncValues) || function (o) {
     if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
     var m = o[Symbol.asyncIterator], i;
@@ -7,6 +6,7 @@ var __asyncValues = (this && this.__asyncValues) || function (o) {
     function verb(n) { i[n] = o[n] && function (v) { return new Promise(function (resolve, reject) { v = o[n](v), settle(resolve, reject, v.done, v.value); }); }; }
     function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
 };
+var __await = (this && this.__await) || function (v) { return this instanceof __await ? (this.v = v, this) : new __await(v); }
 var __asyncGenerator = (this && this.__asyncGenerator) || function (thisArg, _arguments, generator) {
     if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
     var g = generator.apply(thisArg, _arguments || []), i, q = [];
@@ -20,36 +20,62 @@ var __asyncGenerator = (this && this.__asyncGenerator) || function (thisArg, _ar
     function settle(f, v) { if (f(v), q.shift(), q.length) resume(q[0][0], q[0][1]); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.generateText = generateText;
-const genai_1 = require("@google/genai");
-require("dotenv/config");
-const googleAPIKEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-const genAI = new genai_1.GoogleGenAI({ apiKey: googleAPIKEY });
-function generateText(modelName, formattedMessages) {
-    return __asyncGenerator(this, arguments, function* generateText_1() {
+exports.openaiModels = void 0;
+exports.generateStreamText = generateStreamText;
+const ai_1 = require("ai");
+const openai_1 = require("@ai-sdk/openai");
+const google_1 = require("@ai-sdk/google");
+// Define valid OpenAI model names as a constant object
+exports.openaiModels = {
+    "gpt-4o-mini": "gpt-4o-mini",
+    "gpt-4o": "gpt-4o",
+    "gpt-3.5-turbo": "gpt-3.5-turbo",
+    "gpt-3.5-turbo-0125": "gpt-3.5-turbo-0125",
+    "gemini-1.5-flash": "gemini-1.5-flash",
+    "gemini-1.5-pro": "gemini-1.5-pro",
+    "gemini-2.0-flash": "gemini-2.0-flash",
+    "gemini-2.0-flash-lite": "gemini-2.0-flash-lite"
+};
+// Create a Set of valid model names for fast lookup
+const validModelValues = new Set(Object.values(exports.openaiModels));
+function generateStreamText(messages, model) {
+    return __asyncGenerator(this, arguments, function* generateStreamText_1() {
         var _a, e_1, _b, _c;
-        const response = yield __await(genAI.models.generateContentStream({
-            model: modelName,
-            contents: formattedMessages,
-        }));
+        let MODEL;
+        const family = model.split("-")[0];
+        switch (family) {
+            case "gpt":
+                MODEL = (0, openai_1.openai)(model);
+                break;
+            case "gemini":
+                MODEL = (0, google_1.google)(model);
+                break;
+            default:
+                MODEL = (0, google_1.google)("gemini-2.0-flash");
+                break;
+        }
+        // Validate the model
+        if (!validModelValues.has(model)) {
+            throw new Error(`Invalid model name: "${model}". Valid models are: ${Array.from(validModelValues).join(", ")}`);
+        }
+        const { textStream } = (0, ai_1.streamText)({
+            model: MODEL,
+            messages: messages,
+        });
         try {
-            for (var _d = true, response_1 = __asyncValues(response), response_1_1; response_1_1 = yield __await(response_1.next()), _a = response_1_1.done, !_a; _d = true) {
-                _c = response_1_1.value;
+            for (var _d = true, textStream_1 = __asyncValues(textStream), textStream_1_1; textStream_1_1 = yield __await(textStream_1.next()), _a = textStream_1_1.done, !_a; _d = true) {
+                _c = textStream_1_1.value;
                 _d = false;
-                const chunk = _c;
-                const text = chunk.text;
-                if (text) {
-                    yield yield __await(text);
-                }
+                const textPart = _c;
+                yield yield __await(textPart);
             }
         }
         catch (e_1_1) { e_1 = { error: e_1_1 }; }
         finally {
             try {
-                if (!_d && !_a && (_b = response_1.return)) yield __await(_b.call(response_1));
+                if (!_d && !_a && (_b = textStream_1.return)) yield __await(_b.call(textStream_1));
             }
             finally { if (e_1) throw e_1.error; }
         }
     });
 }
-exports.default = generateText;

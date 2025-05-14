@@ -17,11 +17,6 @@ const config_1 = __importDefault(require("../config"));
 const convo_1 = require("./convo");
 const client_s3_1 = require("@aws-sdk/client-s3");
 const userRouter = (0, express_1.Router)();
-// Add S3 client configuration
-const supabaseUrl = process.env.endpoint_url;
-const accessKey = process.env.aws_access_key_id;
-const secretKey = process.env.aws_secret_access_key;
-const region = process.env.region;
 // Function to convert a readable stream to string
 function streamToString(stream) {
     return new Promise((resolve, reject) => {

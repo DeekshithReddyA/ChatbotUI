@@ -1,130 +1,92 @@
-export const models = [
-    {
-      id: "gemini-2.0-flash",
-      name: "Gemini 2.0 Flash",
-      family: "gemini",
-      isPinned: true,
-      capabilities: ["vision", "search", "pdfs"],
-      icon: "Gemini",
-      description: "Google's fastest model optimized for quick responses and real-time interactions. Great for chat and creative tasks.",
-      tokens: 32000,
-      speed: "Fast",
-    },
-    {
-      id: "gemini-2.0-flash-lite",
-      name: "Gemini 2.0 Flash Lite",
-      family: "gemini",
-      isPinned: false,
-      isLocked: false,
-      capabilities: ["vision", "pdfs"],
-      icon: "Gemini",
-      description: "Lightweight version of Gemini Flash with reduced parameters but faster inference. Perfect for mobile devices.",
-      tokens: 16000,
-      speed: "Fast",
-    },
-    {
-      id: "gemini-2.5-pro",
-      name: "Gemini 2.5 Pro",
-      family: "gemini",
-      isPinned: false,
-      isPro: true,
-      isLocked: true,
-      capabilities: ["vision", "search", "pdfs", "reasoning"],
-      icon: "Gemini",
-      description: "Google's most advanced model with superior reasoning and multimodal capabilities. Handles complex tasks with ease.",
-      tokens: 128000,
-      speed: "Balanced",
-    },
-    {
-      id: "gpt-4o-mini",
-      name: "GPT-4o-mini",
-      family: "gpt",
-      isPinned: false,
-      isLocked: false,
-      capabilities: ["vision","pdfs"],
-      icon: "OpenAI",
-      description: "Smaller version of GPT-4o with excellent performance-to-cost ratio. Great for everyday tasks and creative writing.",
-      tokens: 16000,
-      speed: "Fast",
-    },
-    {
-      id: "gpt-4o",
-      name: "GPT-4o",
-      family: "gpt",
-      isPinned: false,
-      isLocked: false,
-      capabilities: ["vision","pdfs"],
-      icon: "OpenAI",
-      description: "OpenAI's flagship multimodal model with exceptional reasoning and vision capabilities. Best for complex tasks.",
-      tokens: 128000,
-      speed: "Balanced",
-    },
-    {
-      id: "gpt-4.1",
-      name: "GPT-4.1",
-      family: "gpt",
-      isPinned: false,
-      isPro: true,
-      isLocked: true,
-      capabilities: ["vision"],
-      icon: "OpenAI",
-      description: "Latest iteration of GPT-4 with improved knowledge cutoff and enhanced reasoning capabilities.",
-      tokens: 128000,
-      speed: "Thorough",
-    },
-    {
-      id: "gpt-4.1-mini",
-      name: "GPT-4.1 Mini",
-      family: "gpt",
-      isPinned: false,
-      isPro: true,
-      isLocked: true,
-      capabilities: ["vision"],
-      icon: "OpenAI",
-      description: "Compact version of GPT-4.1 with reduced parameters but maintaining strong reasoning abilities.",
-      tokens: 32000,
-      speed: "Fast",
-    },
-    {
-      id: "gpt-4.1-nano",
-      name: "GPT-4.1 Nano",
-      family: "gpt",
-      isPinned: false,
-      isPro: true,
-      isLocked: true,
-      capabilities: ["vision"],
-      icon: "OpenAI",
-      description: "Ultra-lightweight GPT model designed for edge devices and mobile applications with minimal latency.",
-      tokens: 8000,
-      speed: "Fast",
-    },
-    {
-      id: "claude-3.5-sonnet",
-      name: "Claude 3.5 Sonnet",
-      family: "claude",
-      isPinned: false,
-      isPro: true,
-      isLocked: true,
-      capabilities: ["vision", "pdfs", "reasoning"],
-      icon: "Claude",
-      description: "Anthropic's latest model with exceptional writing quality and nuanced understanding of complex topics.",
-      tokens: 200000,
-      speed: "Thorough",
-    },
-];
+import { streamText } from "ai";
+import { openai } from "@ai-sdk/openai";
+import { google } from '@ai-sdk/google'; 
 
-export const modifyPinnedModels = (newModels: any) => {
-    return models.map((model) => {
-        if (newModels.includes(model.id)) {
-            return { ...model, isPinned: true };
-        }
-    });
-}
+// Define valid OpenAI model names as a constant object
+export const openaiModels = {
+    "gpt-4o-mini": "gpt-4o-mini",
+    "gpt-4o": "gpt-4o",
+    "gpt-3.5-turbo": "gpt-3.5-turbo",
+    "gpt-3.5-turbo-0125": "gpt-3.5-turbo-0125",
+    "gemini-1.5-flash": "gemini-1.5-flash",
+    "gemini-1.5-pro": "gemini-1.5-pro",
+    "gemini-2.0-flash": "gemini-2.0-flash",
+    "gemini-2.0-flash-lite": "gemini-2.0-flash-lite"
+} as const;
 
-export const modifyLockedModels = (isProMember: boolean) => {
-    return models.map((model) => {
-        if (isProMember) {
-            return { ...model, isLocked: false };
+// Type for allowed model values
+type OpenAIModel = (typeof openaiModels)[keyof typeof openaiModels];
+
+// Create a Set of valid model names for fast lookup
+const validModelValues = new Set<OpenAIModel>(Object.values(openaiModels));
+
+export async function* generateStreamText(messages: any, model: string) {
+    let MODEL;
+    const family = model.split("-")[0];
+    
+    try {
+        switch(family){
+            case "gpt":
+                MODEL = openai(model as OpenAIModel);
+                break;
+            case "gemini":
+                MODEL = google(model as OpenAIModel);
+                break;
+            default:
+                MODEL = google("gemini-2.0-flash");
+                break;
         }
-    });
+        // Validate the model
+        if (!validModelValues.has(model as OpenAIModel)) {
+            throw new Error(
+                `Invalid model name: "${model}". Valid models are: ${Array.from(validModelValues).join(", ")}`
+            );
+        }
+
+        // Ensure messages are properly formatted for multimodal content
+        const formattedMessages = messages.map((msg: any) => {
+            // Some models handle multimodal content differently
+            // Make sure the content format is correct for each provider
+            if (Array.isArray(msg.content)) {
+                // Check for oversized content and provide warning
+                const totalSize = JSON.stringify(msg.content).length;
+                if (totalSize > 20 * 1024 * 1024) { // 20MB limit
+                    console.warn(`Warning: Very large message detected (${Math.round(totalSize/1024/1024)}MB). This may cause issues.`);
+                }
+                
+                // If using Google models, ensure image URLs use the correct format
+                if (family === "gemini") {
+                    return {
+                        ...msg,
+                        content: msg.content.map((part: any) => {
+                            if (part.type === 'image' && part.image) {
+                                // For data URLs, Google models require the base64 portion only, without the prefix
+                                if (typeof part.image === 'string' && part.image.startsWith('data:')) {
+                                    const base64Data = part.image.split(',')[1];
+                                    return { ...part, image: base64Data };
+                                }
+                            }
+                            return part;
+                        })
+                    };
+                }
+                // For OpenAI models, the format should be correct as is
+                return msg;
+            }
+            return msg;
+        });
+
+        const { textStream } = streamText({
+            model: MODEL,
+            messages: formattedMessages,
+            maxTokens: 4096 // Set a reasonable limit to prevent overflows
+        });
+
+        for await (const textPart of textStream) {
+            yield textPart;
+        }
+    } catch (error) {
+        console.error("Error in generateStreamText:", error);
+        yield `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`;
+    }
 }

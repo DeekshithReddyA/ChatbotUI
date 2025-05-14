@@ -56,7 +56,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
-const google_1 = require("./models/google");
+const models_1 = require("./models/models");
 const config_1 = __importDefault(require("./config"));
 const user_1 = __importDefault(require("./routes/user"));
 const convo_1 = __importStar(require("./routes/convo"));
@@ -65,7 +65,10 @@ dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3000;
 app.use((0, cors_1.default)());
-app.use(express_1.default.json());
+// Increase JSON body size limit to 50MB for image uploads
+app.use(express_1.default.json({ limit: '50mb' }));
+// Also increase URL-encoded data limit
+app.use(express_1.default.urlencoded({ limit: '50mb', extended: true }));
 app.use('/api/user', user_1.default);
 app.use('/api/convo', convo_1.default);
 // Function to convert a readable stream to string
@@ -252,13 +255,15 @@ app.post('/api/pinnedModels', (req, res) => __awaiter(void 0, void 0, void 0, fu
 }));
 app.post('/api/chat', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, e_1, _b, _c;
-    const { messages, model = "gemini-2.0-flash" } = req.body;
+    const { messages, model, files } = req.body;
+    console.log("Request", req.body);
     const userId = req.headers['userid'];
     // Track the conversation if ID is provided
     const conversationId = req.headers['conversationid'];
     console.log(`Chat request received for conversation ID: ${conversationId || 'none'}`);
     console.log(`Model selected: ${model}`);
     console.log(`Messages in request: ${messages.length}`);
+    console.log(`Files in request: ${files ? files.length : 0}`);
     if (!messages || !Array.isArray(messages)) {
         res.status(400).json({ error: 'Invalid messages format' });
         return;
@@ -269,8 +274,8 @@ app.post('/api/chat', (req, res) => __awaiter(void 0, void 0, void 0, function* 
         if (lastMessage.role === 'user') {
             try {
                 console.log(`Saving user message to conversation ${conversationId}`);
-                console.log(`User message content: ${lastMessage.content.substring(0, 50)}${lastMessage.content.length > 50 ? '...' : ''}`);
-                const result = yield (0, convo_1.appendMessage)(conversationId, lastMessage.content, 'user', new Date(), '');
+                console.log(`User message content: ${lastMessage.content.substring ? lastMessage.content.substring(0, 50) + (lastMessage.content.length > 50 ? '...' : '') : 'Multimodal content'}`);
+                const result = yield (0, convo_1.appendMessage)(conversationId, typeof lastMessage.content === 'string' ? lastMessage.content : JSON.stringify(lastMessage.content), 'user', new Date(), '');
                 console.log('User message save result:', result);
             }
             catch (error) {
@@ -283,12 +288,26 @@ app.post('/api/chat', (req, res) => __awaiter(void 0, void 0, void 0, function* 
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
     try {
-        // Format messages for Gemini API
-        const formattedMessages = messages.map((msg) => ({
-            role: msg.role,
-            parts: [{ text: msg.content }]
-        }));
-        const textStream = (0, google_1.generateText)("gemini-2.0-flash", formattedMessages);
+        // Format messages for API
+        const formattedMessages = messages.map((msg) => {
+            // If the message content is already in the proper format (array of content parts)
+            if (Array.isArray(msg.content)) {
+                return {
+                    role: msg.role,
+                    content: msg.content
+                };
+            }
+            // Otherwise, convert string content to proper format
+            return {
+                role: msg.role,
+                content: [{ type: "text", text: msg.content }]
+            };
+        });
+        // Check if this is one of the image-compatible models
+        const isImageIncompatibleModel = [
+            'gpt-4', 'o3-mini', 'o3', 'o4-mini', 'o1-preview'
+        ].includes(model);
+        const textStream = (0, models_1.generateStreamText)(formattedMessages, model);
         let responseText = ''; // Accumulate the full response
         try {
             for (var _d = true, textStream_1 = __asyncValues(textStream), textStream_1_1; textStream_1_1 = yield textStream_1.next(), _a = textStream_1_1.done, !_a; _d = true) {

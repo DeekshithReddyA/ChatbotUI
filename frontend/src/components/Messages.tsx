@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { cn } from "../lib/utils";
 import { ScrollArea } from "./ui/ScrollArea";
-import { Bot, Sparkles, Cpu } from "lucide-react";
+import { Bot, Sparkles, Cpu, FileIcon } from "lucide-react";
 import LatexText from "./Latex";
 import { AnimatePresence, motion } from "framer-motion";
 import { AIModel } from "../types/AIModel";
 
 interface Message {
   id: string;
-  content: string;
+  content: string | any[]; // Allow either string or array content
   sender: "user" | "ai";
   timestamp: Date;
   model?: string;
@@ -49,6 +49,74 @@ function splitMarkdownAtIncompleteCodeBlock(text: string) {
       complete: text,
       incomplete: ''
     };
+  }
+}
+
+// Helper function to check if a string is a JSON array with image content
+function isJsonWithImages(str: string): boolean {
+  try {
+    if (!str.startsWith('[{') || !str.endsWith('}]')) return false;
+    const parsed = JSON.parse(str);
+    return Array.isArray(parsed) && parsed.some(part => part.type === 'image' || part.type === 'file');
+  } catch (e) {
+    return false;
+  }
+}
+
+// Helper function to extract text from multimodal content
+function extractTextContent(contentArray: any[]): string {
+  const textParts = contentArray.filter(part => part.type === 'text');
+  return textParts.map(part => part.text).join('\n');
+}
+
+// Helper function to render multimodal content
+function renderMultimodalContent(content: string) {
+  try {
+    const parsedContent = JSON.parse(content);
+    if (!Array.isArray(parsedContent)) {
+      return <LatexText content={content} />;
+    }
+
+    return (
+      <div className="flex flex-col gap-3">
+        {/* Render text parts first */}
+        {parsedContent.filter(part => part.type === 'text').map((part, idx) => (
+          <div key={`text-${idx}`}>
+            <LatexText content={part.text} />
+          </div>
+        ))}
+        
+        {/* Render image parts */}
+        <div className="flex flex-wrap gap-2 mt-1">
+          {parsedContent.filter(part => part.type === 'image').map((part, idx) => (
+            <div key={`img-${idx}`} className="relative group">
+              <img 
+                src={part.image} 
+                alt="Attached image"
+                className="max-w-[240px] max-h-[240px] rounded-md object-cover border border-border/60"
+              />
+            </div>
+          ))}
+        </div>
+        
+        {/* Render file attachments */}
+        <div className="flex flex-wrap gap-2 mt-1">
+          {parsedContent.filter(part => part.type === 'file').map((part, idx) => (
+            <div 
+              key={`file-${idx}`} 
+              className="flex items-center gap-2 bg-background/50 rounded-md border border-border/60 px-3 py-2"
+            >
+              <FileIcon className="h-4 w-4 text-primary/70" />
+              <span className="text-xs truncate max-w-[150px]">
+                {part.filename || 'Attached file'}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  } catch (e) {
+    return <LatexText content={content} />;
   }
 }
 
@@ -236,7 +304,7 @@ export const Messages = ({
                 <div className="max-w-[95%] overflow-hidden">
                   <div className={cn("rounded-2xl shadow-md overflow-hidden", msg.sender === "user" ? "bg-accent text-accent-foreground rounded-tr-none" : "bg-card border border-border/40 text-foreground rounded-tl-none")}>
                     <div className="leading-8 px-2 py-1 break-words text-sm overflow-wrap-anywhere">
-                      <LatexText content={msg.content} />
+                      {isJsonWithImages(typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)) ? renderMultimodalContent(typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)) : <LatexText content={typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)} />}
                     </div>
                   </div>
                   <div className={cn("flex mt-1.5 text-xs text-muted-foreground", msg.sender === "user" ? "justify-end" : "justify-start")}>
@@ -263,6 +331,12 @@ export const Messages = ({
                 <div className="rounded-2xl px-2 py-1 bg-card border border-border/40 text-foreground shadow-md text-sm leading-8 break-words overflow-wrap-anywhere">
                   {/* Split streaming response for correct rendering */}
                   {(() => {
+                    // Check if the renderedResponse is a JSON string with multimodal content
+                    if (isJsonWithImages(renderedResponse)) {
+                      return renderMultimodalContent(renderedResponse);
+                    }
+                    
+                    // Otherwise render as traditional markdown with potential code blocks
                     const { complete, incomplete } = splitMarkdownAtIncompleteCodeBlock(renderedResponse);
                     return <>
                       {complete && <LatexText content={complete} />}

@@ -2,8 +2,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { generateText } from './models/google';
-import { modifyPinnedModels } from './models/models';
+import { generateStreamText } from './models/models';
 import prisma from './config';
 import userRouter from './routes/user';
 import convoRouter, { appendMessage, client, BUCKET_NAME } from './routes/convo';
@@ -15,7 +14,10 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json());
+// Increase JSON body size limit to 50MB for image uploads
+app.use(express.json({ limit: '50mb' }));
+// Also increase URL-encoded data limit
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 app.use('/api/user', userRouter);
 app.use('/api/convo', convoRouter);
@@ -231,7 +233,9 @@ app.post('/api/pinnedModels' , async (req, res) => {
 });
 
 app.post('/api/chat', async (req, res) => {
-  const { messages, model = "gemini-2.0-flash" } = req.body;
+  const { messages, model, files } = req.body;
+
+  console.log("Request", req.body);
   const userId = req.headers['userid'] as string;
 
   // Track the conversation if ID is provided
@@ -239,6 +243,7 @@ app.post('/api/chat', async (req, res) => {
   console.log(`Chat request received for conversation ID: ${conversationId || 'none'}`);
   console.log(`Model selected: ${model}`);
   console.log(`Messages in request: ${messages.length}`);
+  console.log(`Files in request: ${files ? files.length : 0}`);
 
   if (!messages || !Array.isArray(messages)) {
     res.status(400).json({ error: 'Invalid messages format' });
@@ -251,11 +256,11 @@ app.post('/api/chat', async (req, res) => {
     if (lastMessage.role === 'user') {
       try {
         console.log(`Saving user message to conversation ${conversationId}`);
-        console.log(`User message content: ${lastMessage.content.substring(0, 50)}${lastMessage.content.length > 50 ? '...' : ''}`);
+        console.log(`User message content: ${lastMessage.content.substring ? lastMessage.content.substring(0, 50) + (lastMessage.content.length > 50 ? '...' : '') : 'Multimodal content'}`);
         
         const result = await appendMessage(
           conversationId,
-          lastMessage.content,
+          typeof lastMessage.content === 'string' ? lastMessage.content : JSON.stringify(lastMessage.content),
           'user',
           new Date(),
           ''
@@ -273,13 +278,29 @@ app.post('/api/chat', async (req, res) => {
   res.flushHeaders();
 
   try {
-    // Format messages for Gemini API
-    const formattedMessages = messages.map((msg: any) => ({
-      role: msg.role,
-      parts: [{ text: msg.content }]
-    }));
+    // Format messages for API
+    const formattedMessages = messages.map((msg: any) => {
+      // If the message content is already in the proper format (array of content parts)
+      if (Array.isArray(msg.content)) {
+        return {
+          role: msg.role,
+          content: msg.content
+        };
+      }
+      
+      // Otherwise, convert string content to proper format
+      return {
+        role: msg.role,
+        content: [{type: "text", text: msg.content }]
+      };
+    });
 
-    const textStream = generateText("gemini-2.0-flash", formattedMessages);
+    // Check if this is one of the image-compatible models
+    const isImageIncompatibleModel = [
+      'gpt-4', 'o3-mini', 'o3', 'o4-mini', 'o1-preview'
+    ].includes(model);
+
+    const textStream = generateStreamText(formattedMessages, model);
     let responseText = ''; // Accumulate the full response
 
     for await (const text of textStream) {
