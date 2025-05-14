@@ -292,7 +292,7 @@ convoRouter.get('/:id', (req, res) => __awaiter(void 0, void 0, void 0, function
     }
 }));
 convoRouter.post('/create', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { userId, title, firstMessage, aiResponse, model } = req.body;
+    const { userId, title, firstMessage, aiResponse, model, stopped } = req.body;
     if (!userId || !title) {
         res.status(400).json({ error: 'Missing required fields' });
         return;
@@ -348,7 +348,8 @@ convoRouter.post('/create', (req, res) => __awaiter(void 0, void 0, void 0, func
                     content: aiResponse,
                     sender: "ai",
                     timestamp: new Date().toISOString(),
-                    model: model || "gpt-4o"
+                    model: model || "gpt-4o",
+                    stopped: stopped || false // Add the stopped flag if provided
                 };
                 initialMessages.push(aiMessage);
             }
@@ -491,7 +492,7 @@ convoRouter.delete('/:id', (req, res) => __awaiter(void 0, void 0, void 0, funct
 }));
 exports.default = convoRouter;
 // Append a message to a conversation (replace file)
-const appendMessage = (id, content, sender, timestamp, model) => __awaiter(void 0, void 0, void 0, function* () {
+const appendMessage = (id_1, content_1, sender_1, timestamp_1, model_1, ...args_1) => __awaiter(void 0, [id_1, content_1, sender_1, timestamp_1, model_1, ...args_1], void 0, function* (id, content, sender, timestamp, model, stopped = false) {
     console.log(`Starting appendMessage for conversation ${id}`);
     try {
         // Find the conversation
@@ -534,7 +535,8 @@ const appendMessage = (id, content, sender, timestamp, model) => __awaiter(void 
                 content,
                 sender,
                 timestamp: timestamp.toISOString(),
-                model
+                model,
+                stopped: stopped // Include the stopped flag 
             };
             messages.push(newMessage);
             console.log(`Added new message with ID ${messageId}, total messages: ${messages.length}`);

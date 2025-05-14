@@ -339,7 +339,7 @@ convoRouter.get('/:id', async (req, res) => {
 });
 
 convoRouter.post('/create', async (req, res) => {
-    const { userId, title, firstMessage, aiResponse, model } = req.body;
+    const { userId, title, firstMessage, aiResponse, model, stopped } = req.body;
 
     if (!userId || !title) {
         res.status(400).json({ error: 'Missing required fields' });
@@ -402,7 +402,8 @@ convoRouter.post('/create', async (req, res) => {
                     content: aiResponse,
                     sender: "ai",
                     timestamp: new Date().toISOString(),
-                    model: model || "gpt-4o"
+                    model: model || "gpt-4o",
+                    stopped: stopped || false // Add the stopped flag if provided
                 };
                 
                 initialMessages.push(aiMessage);
@@ -577,7 +578,7 @@ export default convoRouter;
 
 
 // Append a message to a conversation (replace file)
-export const appendMessage = async (id: string, content: string, sender: string, timestamp: Date, model: string) => {
+export const appendMessage = async (id: string, content: string, sender: string, timestamp: Date, model: string, stopped: boolean = false) => {
     console.log(`Starting appendMessage for conversation ${id}`);
     try {
         // Find the conversation
@@ -627,7 +628,8 @@ export const appendMessage = async (id: string, content: string, sender: string,
                 content, 
                 sender, 
                 timestamp: timestamp.toISOString(), 
-                model 
+                model,
+                stopped: stopped // Include the stopped flag 
             };
             
             messages.push(newMessage);

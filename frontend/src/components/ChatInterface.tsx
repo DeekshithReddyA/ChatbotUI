@@ -17,6 +17,7 @@ interface Message {
   sender: "user" | "ai";
   timestamp: Date;
   model?: string;
+  stopped?: boolean; // Indicates if response streaming was stopped early
 }
 
 interface Conversation {
@@ -951,6 +952,171 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
     }
   };
 
+  // Stop streaming and save the response so far
+  const stopStreaming = async () => {
+    if (streamSource.current && isLoading && aiResponse) {
+      // Close the stream
+      streamSource.current.close();
+      streamSource.current = null;
+      
+      // Get current state before we change it
+      const currentResponse = aiResponse;
+      const currentConversationId = currentConversation?.id || tempConversationId;
+      
+      // Update UI state
+      setIsLoading(false);
+      
+      if (!currentConversationId) {
+        console.error("No conversation ID available to save stopped response");
+        return;
+      }
+      
+      if (awaitingFirstMessage) {
+        // Handle stopping stream for first message in a new conversation
+        // This is similar to the code in the message event handler, but uses the current response
+        const tempId = tempConversationId!;
+        
+        // Add AI response to conversation
+        const aiMessageObj: Message = {
+          id: `${tempId}-2`,
+          content: currentResponse,
+          sender: "ai",
+          timestamp: new Date(),
+          model: "gpt-4o",
+        };
+        
+        // Update the conversation with AI response
+        props.setConversations((prevConversations: Conversation[]) => 
+          prevConversations.map(conv => {
+            if (conv.id === tempId) {
+              // Create a preview for the lastMessage
+              const aiPreview = currentResponse.substring(0, 50) + (currentResponse.length > 50 ? "..." : "");
+              
+              return {
+                ...conv,
+                messages: {
+                  ...conv.messages,
+                  messages: [...conv.messages.messages, aiMessageObj]
+                },
+                lastMessage: aiPreview,
+                timestamp: new Date(),
+              };
+            }
+            return conv;
+          })
+        );
+        
+        // Save to backend (first message case)
+        const title = props.conversations.find(c => c.id === tempId)?.title || "New Conversation";
+        const firstMessage = props.conversations.find(c => c.id === tempId)?.messages.messages[0].content;
+        
+        try {
+          const response = await axios.post(`${BACKEND_URL}/api/convo/create`, {
+            userId: localStorage.getItem('userId'),
+            title,
+            firstMessage,
+            aiResponse: currentResponse,
+            model: "gpt-4o",
+            stopped: true
+          });
+          
+          const { id: backendId } = response.data;
+          if (backendId && backendId !== tempId) {
+            props.setConversations((prevConversations: Conversation[]) => 
+              prevConversations.map(conv => {
+                if (conv.id === tempId) {
+                  return {
+                    ...conv,
+                    id: backendId,
+                    messages: {
+                      ...conv.messages,
+                      id: backendId
+                    }
+                  };
+                }
+                return conv;
+              })
+            );
+            
+            setActiveConversation(backendId);
+            navigate(`/chat/${backendId}`);
+          }
+        } catch (error) {
+          console.error("Error saving stopped conversation:", error);
+          
+          // Save locally as fallback
+          localStorage.setItem(`convo_${tempId}`, JSON.stringify({
+            id: tempId,
+            title,
+            messages: [
+              props.conversations.find(c => c.id === tempId)?.messages.messages[0],
+              {
+                id: `${tempId}-2`,
+                content: currentResponse,
+                sender: "ai",
+                timestamp: new Date().toISOString(),
+                model: "gpt-4o"
+              }
+            ]
+          }));
+        }
+        
+        // Reset states
+        setAwaitingFirstMessage(false);
+        setTempConversationId(null);
+      } else {
+        // For existing conversations, add the partial response
+        const aiMessageObj: Message = {
+          id: `${currentConversationId}-${currentConversation!.messages.messages.length + 2}`,
+          content: currentResponse,
+          sender: "ai",
+          timestamp: new Date(),
+          model: currentConversation!.model,
+          stopped: true
+        };
+        
+        // Update the conversation with the partial response
+        props.setConversations((prevConversations: Conversation[]) => 
+          prevConversations.map(conv => {
+            if (conv.id === currentConversationId) {
+              // Create a preview for the lastMessage
+              const aiPreview = currentResponse.substring(0, 50) + (currentResponse.length > 50 ? "..." : "") + " [stopped]";
+              
+              return {
+                ...conv,
+                messages: {
+                  ...conv.messages,
+                  messages: [...conv.messages.messages, aiMessageObj]
+                },
+                lastMessage: aiPreview,
+                timestamp: new Date(),
+              };
+            }
+            return conv;
+          })
+        );
+        
+        // Save to backend (existing conversation case)
+        try {
+          await axios.post(`${BACKEND_URL}/api/chat/save-stopped`, {
+            conversationId: currentConversationId,
+            content: currentResponse,
+            model: currentConversation?.model || "gpt-4o"
+          }, {
+            headers: {
+              'userId': localStorage.getItem('userId')
+            }
+          });
+        } catch (error) {
+          console.error("Error saving stopped response:", error);
+        }
+      }
+      
+      // Reset AI response
+      setAiResponse("");
+    }
+  };
+
   // Pause/resume streaming
   const toggleStreamPause = () => {
     setStreamPaused(!streamPaused);
@@ -1073,6 +1239,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
               setSelectedText={setSelectedText}
               streamingResponse={aiResponse}
               onReplyWithContext={handleReplyWithContext}
+              onStopStreaming={stopStreaming}
             />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center">
@@ -1088,6 +1255,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
           onSendMessage={handleSendMessage}
           isLoading={isLoading}
           placeholder={awaitingFirstMessage ? "Type your first message..." : "Type a message or ask a question..."}
+          onStopGeneration={stopStreaming}
         />
       </div>
     </div>

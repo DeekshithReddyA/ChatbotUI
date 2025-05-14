@@ -349,6 +349,29 @@ app.post('/api/chat', (req, res) => __awaiter(void 0, void 0, void 0, function* 
         res.end();
     }
 }));
+// Add endpoint to save stopped messages
+app.post('/api/chat/save-stopped', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { conversationId, content, model } = req.body;
+    const userId = req.headers['userid'];
+    if (!conversationId || !content) {
+        res.status(400).json({ error: 'Missing required fields' });
+        return;
+    }
+    try {
+        // Save the stopped AI response to the conversation
+        const result = yield (0, convo_1.appendMessage)(conversationId, content, 'ai', new Date(), model || 'gpt-4o', true // Indicate this message was stopped early
+        );
+        console.log(`Saved stopped message for conversation ${conversationId}`);
+        res.status(200).json({ success: true, result });
+    }
+    catch (error) {
+        console.error('Error saving stopped message:', error);
+        res.status(500).json({
+            error: 'Failed to save stopped message',
+            details: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+}));
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });

@@ -8,6 +8,8 @@ import {
   XIcon,
   ImageIcon,
   FileIcon,
+  StopCircleIcon,
+  SquareIcon
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/Button";
@@ -19,6 +21,7 @@ interface MessageInputProps {
   placeholder?: string;
   selectedContext?: string | null;
   onClearContext?: () => void;
+  onStopGeneration?: () => void;
 }
 
 interface FilePreview {
@@ -33,6 +36,7 @@ const MessageInput = ({
   placeholder = "Type your message here...",
   selectedContext = null,
   onClearContext = () => {},
+  onStopGeneration = () => {},
 }: MessageInputProps) => {
   const [message, setMessage] = useState("");
   const [isFocused, setIsFocused] = useState(false);
@@ -295,19 +299,24 @@ ${message}`
             </div>
           </div>
           <Button
-            type="submit"
+            type={isLoading ? "button" : "submit"}
             size="icon"
-            disabled={
-              (message.trim() === "" && files.length === 0) || isLoading
-            }
+            disabled={message.trim() === "" && files.length === 0 && !isLoading}
             className={cn(
-              "h-10 w-10 rounded-full bg-accent hover:bg-accent/90 text-accent-foreground",
-              "shadow-md hover:shadow-lg transition-all duration-200",
-              "disabled:opacity-50 disabled:cursor-not-allowed",
+              "h-10 w-10 rounded-full shadow-md hover:shadow-lg transition-all duration-200",
+              isLoading 
+                ? "bg-red-500/10 hover:bg-red-500/20 text-red-500"
+                : "bg-accent hover:bg-accent/90 text-accent-foreground disabled:opacity-50 disabled:cursor-not-allowed",
             )}
+            onClick={(e) => {
+              if (isLoading) {
+                e.preventDefault();
+                onStopGeneration();
+              }
+            }}
           >
             {isLoading ? (
-              <Sparkles className="h-5 w-5 animate-pulse" />
+              <SquareIcon className="h-5 w-5" />
             ) : (
               <SendIcon className="h-5 w-5" />
             )}

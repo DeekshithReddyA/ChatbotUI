@@ -12,6 +12,7 @@ interface Message {
   sender: "user" | "ai";
   timestamp: Date;
   model?: string;
+  stopped?: boolean; // Indicates if response streaming was stopped early
 }
 
 interface MessageThreadProps {
@@ -24,6 +25,7 @@ interface MessageThreadProps {
   selectedText?: string;
   setSelectedText?: (text: string) => void;
   streamingResponse?: string;
+  onStopStreaming?: () => void;
 }
 
 // Utility to split streaming markdown into complete and incomplete blocks
@@ -130,6 +132,7 @@ export const Messages = ({
   setSelectedText = () => {},
   onReplyWithContext = () => {},
   streamingResponse = "",
+  onStopStreaming = () => {},
 }: MessageThreadProps) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -309,8 +312,26 @@ export const Messages = ({
                   </div>
                   <div className={cn("flex mt-1.5 text-xs text-muted-foreground", msg.sender === "user" ? "justify-end" : "justify-start")}>
                     <span className="flex items-center gap-1">
-                              {getModelIcon(msg.model || "")}
-                              {models && models.find(m => m.id === msg.model)?.name || msg.model}
+                      {getModelIcon(msg.model || "")}
+                      {models && models.find(m => m.id === msg.model)?.name || msg.model}
+                      {msg.stopped && (
+                        <span className="ml-1 text-yellow-500 text-[10px] bg-yellow-500/10 px-1 rounded flex items-center gap-0.5">
+                          <svg 
+                            xmlns="http://www.w3.org/2000/svg" 
+                            width="8" 
+                            height="8" 
+                            viewBox="0 0 24 24" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            strokeWidth="2" 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round"
+                          >
+                            <rect width="16" height="16" x="4" y="4" rx="2" />
+                          </svg>
+                          Stopped
+                        </span>
+                      )}
                     </span>
                   </div>
                 </div>
