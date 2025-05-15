@@ -3,6 +3,7 @@ import { openai } from "@ai-sdk/openai";
 
 // Define valid OpenAI model names as a constant object
 export const openaiModels = {
+    // "gpt-4o-mini": "gpt-4o-mini",
     "gpt-4o-mini": "gpt-4o-mini",
     "gpt-4o": "gpt-4o",
     "gpt-3.5-turbo": "gpt-3.5-turbo",
@@ -48,6 +49,10 @@ export async function* generateOpenAIStreamText(messages: any[], modelName: stri
                 `Invalid OpenAI model name: "${modelName}". Valid models are: ${Array.from(validOpenAIModelValues).join(", ")}`
             );
         }
+        if(modelName === "gpt-4o-mini"){
+            console.log("Using gpt-4o-mini-search-preview");
+            modelName = "gpt-4o-mini-search-preview";
+        }
 
         // Format messages for OpenAI
         const formattedMessages = formatMessagesForOpenAI(messages);
@@ -58,17 +63,6 @@ export async function* generateOpenAIStreamText(messages: any[], modelName: stri
         const { textStream } = streamText({
             model: MODEL,
             messages: formattedMessages,
-            tools: {
-                web_search_preview : openai.tools.webSearchPreview({
-                    searchContextSize: 'high',
-                    userLocation: {
-                        type: 'approximate',
-                        city: 'Hyderabad',
-                        country: 'India',
-                    }
-                })
-            },
-            toolChoice: 'auto'
         });
 
         for await (const textPart of textStream) {

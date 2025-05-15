@@ -30,7 +30,7 @@ exports.googleModels = {
     "gemini-1.5-flash": "gemini-1.5-flash",
     "gemini-1.5-pro": "gemini-1.5-pro",
     "gemini-2.0-flash": "gemini-2.0-flash",
-    "gemini-2.0-flash-lite": "gemini-2.0-flash-lite"
+    "gemini-2.0-flash-lite": "gemini-2.0-flash-lite",
 };
 // Create a Set of valid model names for fast lookup
 const validGoogleModelValues = new Set(Object.values(exports.googleModels));

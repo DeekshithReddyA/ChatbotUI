@@ -4,7 +4,7 @@ import MessageInput from "./MessageInput";
 import { Messages } from "./Messages";
 import ModelSelector from "./ModelSelection";
 import { SSE } from "sse.js";
-import { Menu as MenuIcon } from "lucide-react";
+import { Menu as MenuIcon, Sparkles, Cpu } from "lucide-react";
 import { Button } from "./ui/Button";
 import { AIModel } from "../types/AIModel";
 import axios from "axios";
@@ -573,7 +573,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
           title: title,
           messages: [newMessage]
         },
-        model: "gpt-4o", // Default model
+        model: getDefaultModel(props.models), // Use default model function
       };
       
       // Update conversations and set this as active
@@ -597,15 +597,19 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
           content: messageContent
         }];
         
+        // Determine which model to use (default if new conversation)
+        const modelToUse = getDefaultModel(props.models);
+        
         // Create a new SSE connection for a new conversation
         streamSource.current = new SSE(`${BACKEND_URL}/api/chat`, {
           headers: {
             "Content-Type": "application/json",
+            "userId": localStorage.getItem('userId') || '', // Add userId header
             // Don't pass conversationId for new conversations yet, as it doesn't exist on backend
           },
           payload: JSON.stringify({
             messages: messagesForAPI,
-            model: "gpt-4o" // Default model for new conversations
+            model: modelToUse // Use the determined model
           }),
           method: "POST",
         });
@@ -625,7 +629,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
               content: accumulatedResponse,
               sender: "ai",
               timestamp: new Date(),
-              model: "gpt-4o",
+              model: modelToUse,
             };
             
             console.log("AI Message Object", aiMessageObj);
@@ -656,7 +660,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
               title: title,
               firstMessage: typeof messageContent === 'string' ? messageContent : JSON.stringify(messageContent),
               aiResponse: accumulatedResponse,
-              model: "gpt-4o"
+              model: modelToUse
             })
               .then(response => {
                 // Update the conversation with the real ID from backend
@@ -686,7 +690,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
                       title: title,
                       messages: [
                         { id: `${backendId}-1`, content: typeof messageContent === 'string' ? messageContent : JSON.stringify(messageContent), sender: "user", timestamp: new Date().toISOString() },
-                        { id: `${backendId}-2`, content: accumulatedResponse, sender: "ai", timestamp: new Date().toISOString(), model: "gpt-4o" }
+                        { id: `${backendId}-2`, content: accumulatedResponse, sender: "ai", timestamp: new Date().toISOString(), model: modelToUse }
                       ]
                     };
                     localStorage.setItem(`convo_${backendId}`, JSON.stringify(convoData));
@@ -710,7 +714,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
                     title: title,
                     messages: [
                       { id: `${tempId}-1`, content: typeof messageContent === 'string' ? messageContent : JSON.stringify(messageContent), sender: "user", timestamp: new Date().toISOString() },
-                      { id: `${tempId}-2`, content: accumulatedResponse, sender: "ai", timestamp: new Date().toISOString(), model: "gpt-4o" }
+                      { id: `${tempId}-2`, content: accumulatedResponse, sender: "ai", timestamp: new Date().toISOString(), model: modelToUse }
                     ]
                   };
                   localStorage.setItem(`convo_${tempId}`, JSON.stringify(localConvoData));
@@ -722,7 +726,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
                       title: title,
                       firstMessage: typeof messageContent === 'string' ? messageContent : JSON.stringify(messageContent),
                       aiResponse: accumulatedResponse,
-                      model: "gpt-4o"
+                      model: modelToUse
                     })
                     .then(retryResponse => {
                       console.log("Retry successful, conversation created:", retryResponse.data);
@@ -881,6 +885,11 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
         content: messageContent
       });
 
+      // Determine which model to use - check if current model is available, otherwise use default
+      const modelToUse = isModelAvailable(currentConversation.model, props.models) 
+        ? currentConversation.model 
+        : getDefaultModel(props.models);
+
       // Create a new SSE connection for existing conversation
       streamSource.current = new SSE(`${BACKEND_URL}/api/chat`, {
         headers: {
@@ -890,7 +899,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
         },
         payload: JSON.stringify({
           messages: messagesForAPI,
-          model: currentConversation.model
+          model: modelToUse
         }),
         method: "POST",
       });
@@ -910,7 +919,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
             content: accumulatedResponse,
             sender: "ai",
             timestamp: new Date(),
-            model: currentConversation.model,
+            model: modelToUse,
           };
 
           props.setConversations((prevConversations: Conversation[]) => 
@@ -970,8 +979,25 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
     }
   };
 
+  const formatTimestamp = (date: Date) =>
+    date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+  const getModelIcon = (modelName: string) =>
+    modelName.toLowerCase().includes("gpt") ? <Sparkles className="h-3 w-3 text-accent" /> :
+    modelName.toLowerCase().includes("claude") ? <Cpu className="h-3 w-3 text-accent" /> :
+    <span />;
+
   // Handle changing the model for the current conversation
   const handleModelChange = (modelId: string) => {
+    // Check if the selected model is locked (requires pro)
+    const isLocked = props.models.find(m => m.id === modelId)?.isLocked;
+    
+    if (isLocked) {
+      // Model is locked, show a warning message and don't change the model
+      alert("This model requires a Pro subscription. Please upgrade to Pro to use it.");
+      return;
+    }
+    
     const updatedConversations = props.conversations.map((conv) => {
       if (conv.id === activeConversation) {
         return {
@@ -1004,6 +1030,13 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
         return;
       }
       
+      // Determine which model to use
+      const modelToUse = currentConversation 
+        ? (isModelAvailable(currentConversation.model, props.models) 
+            ? currentConversation.model 
+            : getDefaultModel(props.models))
+        : getDefaultModel(props.models);
+      
       if (awaitingFirstMessage) {
         // Handle stopping stream for first message in a new conversation
         // This is similar to the code in the message event handler, but uses the current response
@@ -1015,7 +1048,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
           content: currentResponse,
           sender: "ai",
           timestamp: new Date(),
-          model: "gpt-4o",
+          model: modelToUse,
         };
         
         // Update the conversation with AI response
@@ -1049,7 +1082,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
             title,
             firstMessage,
             aiResponse: currentResponse,
-            model: "gpt-4o",
+            model: modelToUse,
             stopped: true
           });
           
@@ -1088,7 +1121,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
                 content: currentResponse,
                 sender: "ai",
                 timestamp: new Date().toISOString(),
-                model: "gpt-4o"
+                model: modelToUse
               }
             ]
           }));
@@ -1104,7 +1137,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
           content: currentResponse,
           sender: "ai",
           timestamp: new Date(),
-          model: currentConversation!.model,
+          model: modelToUse,
           stopped: true
         };
         
@@ -1134,7 +1167,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
           await axios.post(`${BACKEND_URL}/api/chat/save-stopped`, {
             conversationId: currentConversationId,
             content: currentResponse,
-            model: currentConversation?.model || "gpt-4o"
+            model: modelToUse
           }, {
             headers: {
               'userId': localStorage.getItem('userId')
@@ -1206,8 +1239,28 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
     return preview || 'New message';
   };
 
+  // Add a function to determine the default model based on available models and pro status
+  const getDefaultModel = (models: AIModel[]) => {
+    // First try to find gemini-2.0-flash
+    const geminiFlash = models.find(m => m.id === "gemini-2.0-flash" && !m.isLocked);
+    if (geminiFlash) return geminiFlash.id;
+    
+    // Then try any unlocked model
+    const firstUnlockedModel = models.find(m => !m.isLocked);
+    if (firstUnlockedModel) return firstUnlockedModel.id;
+    
+    // Fallback to gemini-2.0-flash even if we don't know if it's available
+    return "gemini-2.0-flash";
+  };
+
+  // Function to check if a model is available (not locked)
+  const isModelAvailable = (model: string, models: AIModel[]) => {
+    const modelInfo = models.find(m => m.id === model);
+    return modelInfo && !modelInfo.isLocked;
+  };
+
   return (
-    <div className="flex h-screen bg-background text-foreground">
+    <div className="flex h-screen bg-background text-foreground overflow-hidden">
       {/* Overlay for mobile when sidebar is open */}
       {isSidebarOpen && (
         <div 
@@ -1229,7 +1282,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
           onLoadMore={loadMoreConversations}
         />
       </div>
-      <div className="flex flex-col flex-1 h-full p-1 bg-background">
+      <div className="flex flex-col flex-1 h-full p-1 bg-background overflow-hidden">
         <div className="flex items-center mb-2">
           <Button 
             onClick={toggleSidebar}

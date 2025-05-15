@@ -22,7 +22,7 @@ const openai_1 = require("@ai-sdk/openai");
 const generateText = (prompt) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, e_1, _b, _c;
     const { textStream } = (0, ai_1.streamText)({
-        model: (0, openai_1.openai)("gpt-4o-mini"),
+        model: (0, openai_1.openai)("gpt-4o-mini-search-preview"),
         prompt: prompt,
         tools: {
             web_search_preview: openai_1.openai.tools.webSearchPreview({

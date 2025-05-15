@@ -287,7 +287,7 @@ export const Messages = ({
 
   return (
     <div className="flex flex-col h-full overflow-hidden px-2 sm:px-4">
-      <ScrollArea ref={scrollAreaRef} className="flex-1 p-4 relative">
+      <ScrollArea ref={scrollAreaRef} className="flex-1 p-4 relative overflow-hidden">
         {/* Scroll to Bottom Button */}
         {!isAtBottom && (
           <button

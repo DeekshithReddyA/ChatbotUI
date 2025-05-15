@@ -250,93 +250,137 @@ app.post('/api/chat', async (req, res) => {
     return;
   }
 
-  // Save the user message first if we have a conversation ID
-  if (conversationId && messages.length > 0) {
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage.role === 'user') {
-      try {
-        console.log(`Saving user message to conversation ${conversationId}`);
-        console.log(`User message content: ${lastMessage.content.substring ? lastMessage.content.substring(0, 50) + (lastMessage.content.length > 50 ? '...' : '') : 'Multimodal content'}`);
-        
-        const result = await appendMessage(
-          conversationId,
-          typeof lastMessage.content === 'string' ? lastMessage.content : JSON.stringify(lastMessage.content),
-          'user',
-          new Date(),
-          ''
-        );
-        console.log('User message save result:', result);
-      } catch (error) {
-        console.error('Error saving user message to conversation:', error);
-      }
-    }
-  }
-
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders();
-
+  // Check if user has access to the requested model
   try {
-    // Format messages for API
-    const formattedMessages = messages.map((msg: any) => {
-      // If the message content is already in the proper format (array of content parts)
-      if (Array.isArray(msg.content)) {
-        return {
-          role: msg.role,
-          content: msg.content
-        };
-      }
-      
-      // Otherwise, convert string content to proper format
-      return {
-        role: msg.role,
-        content: [{type: "text", text: msg.content }]
-      };
+    const user = await prisma.user.findUnique({
+      where: { userId }
     });
 
-    // Check if this is one of the image-compatible models
-    const isImageIncompatibleModel = [
-      'gpt-4', 'o3-mini', 'o3', 'o4-mini', 'o1-preview'
-    ].includes(model);
+    if (!user) {
+      res.status(401).json({ error: 'User not found or unauthorized' });
+      return;
+    }
 
-    const textStream = generateStreamText(formattedMessages, model);
-    let responseText = ''; // Accumulate the full response
+    // Get model details
+    const modelInfo = await prisma.model.findUnique({
+      where: { id: model }
+    });
 
-    for await (const text of textStream) {
-      if (text) {
-        responseText += text;
-        res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`);
+    if (!modelInfo) {
+      console.log(`Invalid model requested: ${model}, falling back to default`);
+      // We'll continue but with default model
+    } else if (modelInfo.isPro && !user.isPro) {
+      console.log(`User ${userId} attempted to use pro model ${model} without pro access`);
+      // Send a friendly error message
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.flushHeaders();
+      
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: "This model requires a Pro subscription. Using gemini-2.0-flash model instead." } }] })}\n\n`);
+      res.write(`data: [DONE]\n\n`);
+      res.end();
+      return;
+    }
+
+    // Determine which model to actually use (requested model if authorized, or fallback)
+    let actualModel = model;
+    if (modelInfo?.isPro && !user.isPro) {
+      actualModel = "gemini-2.0-flash"; // Default non-pro model
+    }
+
+    // Save the user message first if we have a conversation ID
+    if (conversationId && messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage.role === 'user') {
+        try {
+          console.log(`Saving user message to conversation ${conversationId}`);
+          console.log(`User message content: ${lastMessage.content.substring ? lastMessage.content.substring(0, 50) + (lastMessage.content.length > 50 ? '...' : '') : 'Multimodal content'}`);
+          
+          const result = await appendMessage(
+            conversationId,
+            typeof lastMessage.content === 'string' ? lastMessage.content : JSON.stringify(lastMessage.content),
+            'user',
+            new Date(),
+            ''
+          );
+          console.log('User message save result:', result);
+        } catch (error) {
+          console.error('Error saving user message to conversation:', error);
+        }
       }
     }
 
-    res.write(`data: [DONE]\n\n`);
-    
-    // If we have a conversation ID, update that conversation with the AI's response
-    if (conversationId && responseText) {
-      try {
-        console.log(`Saving AI response to conversation ${conversationId}`);
-        console.log(`AI response length: ${responseText.length} characters`);
-        console.log(`AI response preview: ${responseText.substring(0, 50)}${responseText.length > 50 ? '...' : ''}`);
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    try {
+      // Format messages for API
+      const formattedMessages = messages.map((msg: any) => {
+        // If the message content is already in the proper format (array of content parts)
+        if (Array.isArray(msg.content)) {
+          return {
+            role: msg.role,
+            content: msg.content
+          };
+        }
         
-        const result = await appendMessage(
-          conversationId,
-          responseText,
-          'ai',
-          new Date(),
-          model
-        );
-        console.log('AI response save result:', result.success ? 'Success' : 'Failed');
-      } catch (error) {
-        console.error('Error saving AI response to conversation:', error);
+        // Otherwise, convert string content to proper format
+        return {
+          role: msg.role,
+          content: [{type: "text", text: msg.content }]
+        };
+      });
+
+      // Check if this is one of the image-compatible models
+      const isImageIncompatibleModel = [
+        'gpt-4', 'o3-mini', 'o3', 'o4-mini', 'o1-preview'
+      ].includes(actualModel);
+
+      console.log(`Using model: ${actualModel}`);
+      const textStream = generateStreamText(formattedMessages, actualModel);
+      let responseText = ''; // Accumulate the full response
+
+      for await (const text of textStream) {
+        if (text) {
+          responseText += text;
+          res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`);
+        }
       }
+
+      res.write(`data: [DONE]\n\n`);
+      
+      // If we have a conversation ID, update that conversation with the AI's response
+      if (conversationId && responseText) {
+        try {
+          console.log(`Saving AI response to conversation ${conversationId}`);
+          console.log(`AI response length: ${responseText.length} characters`);
+          console.log(`AI response preview: ${responseText.substring(0, 50)}${responseText.length > 50 ? '...' : ''}`);
+          
+          const result = await appendMessage(
+            conversationId,
+            responseText,
+            'ai',
+            new Date(),
+            actualModel
+          );
+          console.log('AI response save result:', result.success ? 'Success' : 'Failed');
+        } catch (error) {
+          console.error('Error saving AI response to conversation:', error);
+        }
+      }
+      
+      res.end();
+    } catch (err) {
+      console.error("Error:", err);
+      res.write(`data: ${JSON.stringify({ error: 'Streaming error', message: (err as Error).message })}\n\n`);
+      res.end();
     }
-    
-    res.end();
-  } catch (err) {
-    console.error("Error:", err);
-    res.write(`data: ${JSON.stringify({ error: 'Streaming error', message: (err as Error).message })}\n\n`);
-    res.end();
+  } catch (error) {
+    console.error("Error checking user authorization:", error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

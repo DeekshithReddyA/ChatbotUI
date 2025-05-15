@@ -27,6 +27,7 @@ const ai_1 = require("ai");
 const openai_1 = require("@ai-sdk/openai");
 // Define valid OpenAI model names as a constant object
 exports.openaiModels = {
+    // "gpt-4o-mini": "gpt-4o-mini",
     "gpt-4o-mini": "gpt-4o-mini",
     "gpt-4o": "gpt-4o",
     "gpt-3.5-turbo": "gpt-3.5-turbo",
@@ -64,6 +65,10 @@ function generateOpenAIStreamText(messages, modelName) {
             if (!isValidOpenAIModel(modelName)) {
                 throw new Error(`Invalid OpenAI model name: "${modelName}". Valid models are: ${Array.from(validOpenAIModelValues).join(", ")}`);
             }
+            if (modelName === "gpt-4o-mini") {
+                console.log("Using gpt-4o-mini-search-preview");
+                modelName = "gpt-4o-mini-search-preview";
+            }
             // Format messages for OpenAI
             const formattedMessages = formatMessagesForOpenAI(messages);
             // Initialize the model
@@ -71,17 +76,6 @@ function generateOpenAIStreamText(messages, modelName) {
             const { textStream } = (0, ai_1.streamText)({
                 model: MODEL,
                 messages: formattedMessages,
-                tools: {
-                    web_search_preview: openai_1.openai.tools.webSearchPreview({
-                        searchContextSize: 'high',
-                        userLocation: {
-                            type: 'approximate',
-                            city: 'Hyderabad',
-                            country: 'India',
-                        }
-                    })
-                },
-                toolChoice: 'auto'
             });
             try {
                 for (var _d = true, textStream_1 = __asyncValues(textStream), textStream_1_1; textStream_1_1 = yield __await(textStream_1.next()), _a = textStream_1_1.done, !_a; _d = true) {

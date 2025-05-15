@@ -3,7 +3,7 @@ import { openai } from "@ai-sdk/openai";
 
 export const generateText = async (prompt: string) => {
   const {textStream} = streamText({
-    model: openai("gpt-4o-mini"),
+    model: openai("gpt-4o-mini-search-preview"),
     prompt: prompt,
     tools: {
         web_search_preview: openai.tools.webSearchPreview({
