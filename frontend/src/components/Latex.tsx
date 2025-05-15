@@ -7,11 +7,33 @@ import rehypeKatex from 'rehype-katex';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Copy, Check } from 'lucide-react';
+import { prepareLatexContent, containsLatexMath } from '../lib/math-utils';
 import 'katex/dist/katex.min.css';
+import katex from 'katex';
 
 interface PreviewProps {
   content: string;
 }
+
+// Helper to detect if a string contains LaTeX but is not wrapped in math delimiters
+const needsLatexDelimiters = (text: string): boolean => {
+  // If it already has delimiters, don't wrap it again
+  if (text.startsWith('$') || text.startsWith('\\(') || text.startsWith('\\[') || 
+      text.startsWith('$$') || text.startsWith('\\begin{')) {
+    return false;
+  }
+  
+  // Check for common LaTeX expressions that need wrapping
+  return /\\frac|\\sum|\\int|\\text|\\left|\\right|\\approx|\\times/g.test(text);
+};
+
+// Helper to extract math content from square bracket notation: [ ... ]
+const extractMathFromBrackets = (text: string): string => {
+  const bracketRegex = /^\s*\[(.*)\]\s*$/;
+  const match = text.match(bracketRegex);
+  return match ? match[1] : text;
+};
+
 const LatexText: React.FC<PreviewProps> = ({ content }: {content: string}) => {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   
@@ -20,6 +42,30 @@ const LatexText: React.FC<PreviewProps> = ({ content }: {content: string}) => {
     setCopiedCode(code);
     setTimeout(() => setCopiedCode(null), 2000);
   };
+  
+  // Special handling for isolated math expressions
+  if (content.trim().startsWith('[') && content.trim().endsWith(']') && containsLatexMath(content)) {
+    try {
+      const mathContent = extractMathFromBrackets(content.trim());
+      const html = katex.renderToString(mathContent, {
+        displayMode: true,
+        throwOnError: false,
+        strict: false
+      });
+      
+      return (
+        <div className="preview-content preview-fade w-full overflow-hidden katex-block">
+          <div dangerouslySetInnerHTML={{ __html: html }} />
+        </div>
+      );
+    } catch (e) {
+      console.error("KaTeX rendering error:", e);
+      // Fall back to regular markdown rendering if KaTeX fails
+    }
+  }
+  
+  // Prepare the content for rendering
+  const preparedContent = prepareLatexContent(content);
   
   return (
     <div className="preview-content preview-fade w-full overflow-hidden">
@@ -96,6 +142,30 @@ const LatexText: React.FC<PreviewProps> = ({ content }: {content: string}) => {
           },
           // Add handlers for paragraphs and links
           p({ node, children, ...props }) {
+            // Special handling for paragraphs that contain only LaTeX
+            const childrenArray = React.Children.toArray(children);
+            const singleTextChild = childrenArray.length === 1 && typeof childrenArray[0] === 'string';
+            
+            if (singleTextChild && needsLatexDelimiters(childrenArray[0] as string)) {
+              try {
+                const mathContent = childrenArray[0] as string;
+                const html = katex.renderToString(mathContent, {
+                  displayMode: true,
+                  throwOnError: false,
+                  strict: false
+                });
+                
+                return (
+                  <div className="katex-block my-3">
+                    <div dangerouslySetInnerHTML={{ __html: html }} />
+                  </div>
+                );
+              } catch (e) {
+                // Fallback to normal paragraph if KaTeX fails
+                console.error("KaTeX rendering error in paragraph:", e);
+              }
+            }
+            
             return <p className="my-3" {...props}>{children}</p>;
           },
           a({ node, children, href, ...props }) {
@@ -108,24 +178,65 @@ const LatexText: React.FC<PreviewProps> = ({ content }: {content: string}) => {
           hr({ node, ...props }) {
             return <hr className="my-4 border-gray-300" {...props} />;
           },
-          // Add handlers for tables
+          // Add handlers for tables with improved styling
           table({ node, children, ...props }) {
-            return <table className="min-w-full border-collapse my-4" {...props}>{children}</table>;
+            return (
+              <div className="my-6 w-full overflow-x-auto rounded-md">
+                <table className="min-w-full border-collapse border border-gray-600 dark:border-gray-700 rounded-md overflow-hidden bg-gray-700 text-white" {...props}>
+                  {children}
+                </table>
+              </div>
+            );
           },
           thead({ node, children, ...props }) {
-            return <thead className="bg-gray-100 dark:bg-gray-800" {...props}>{children}</thead>;
+            return (
+              <thead 
+                className="bg-gray-800 text-white font-medium" 
+                {...props}
+              >
+                {children}
+              </thead>
+            );
           },
           tbody({ node, children, ...props }) {
-            return <tbody {...props}>{children}</tbody>;
+            return (
+              <tbody 
+                className="divide-y divide-gray-600 dark:divide-gray-600 bg-gray-700" 
+                {...props}
+              >
+                {children}
+              </tbody>
+            );
           },
           tr({ node, children, ...props }) {
-            return <tr className="border-b border-gray-200 dark:border-gray-700" {...props}>{children}</tr>;
+            return (
+              <tr 
+                className="transition-colors hover:bg-gray-600" 
+                {...props}
+              >
+                {children}
+              </tr>
+            );
           },
           th({ node, children, ...props }) {
-            return <th className="px-4 py-2 text-left font-medium" {...props}>{children}</th>;
+            return (
+              <th 
+                className="px-4 py-3 text-left font-medium border-r border-gray-600 last:border-r-0 text-white" 
+                {...props}
+              >
+                {children}
+              </th>
+            );
           },
           td({ node, children, ...props }) {
-            return <td className="px-4 py-2" {...props}>{children}</td>;
+            return (
+              <td 
+                className="px-4 py-3 border-r border-gray-600 last:border-r-0 text-white" 
+                {...props}
+              >
+                {children}
+              </td>
+            );
           },
           // Add handlers for emphasis and strong text
           em({ node, children, ...props }) {
@@ -136,7 +247,7 @@ const LatexText: React.FC<PreviewProps> = ({ content }: {content: string}) => {
           }
         }}
         >
-        {content}
+        {preparedContent}
       </ReactMarkdown>
     </div>
   );

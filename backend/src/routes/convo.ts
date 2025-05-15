@@ -47,7 +47,7 @@ function streamToString(stream: NodeJS.ReadableStream): Promise<string> {
 export async function fetchMessagesFromS3(conversations: Conversation[]) {
     const conversationsWithMessages = await Promise.all(conversations.map(async (convo) => {
         try {
-            console.log(`Processing conversation: ${convo.id} - ${convo.title}`);
+            // // console.log(`Processing conversation: ${convo.id} - ${convo.title}`);
         
         // Extract bucket and key from fileUrl
         const url = new URL(convo.fileUrl);
@@ -55,7 +55,7 @@ export async function fetchMessagesFromS3(conversations: Conversation[]) {
         const bucket = temp[4];
         const key = temp[5] + '/' + temp[6];
         
-        console.log(`Getting object from bucket: ${bucket}, key: ${key}`);
+        // // console.log(`Getting object from bucket: ${bucket}, key: ${key}`);
         
         // Fetch messages from S3
         const getObjectCommand = new GetObjectCommand({ 
@@ -69,7 +69,7 @@ export async function fetchMessagesFromS3(conversations: Conversation[]) {
         }
         
         const bodyContents = await streamToString(response.Body as NodeJS.ReadableStream);
-        console.log(`Retrieved content of length: ${bodyContents.length}`);
+        // // console.log(`Retrieved content of length: ${bodyContents.length}`);
         
         // Parse messages safely
         let messages = [];
@@ -84,14 +84,14 @@ export async function fetchMessagesFromS3(conversations: Conversation[]) {
             messages = []; // Reset to empty array if parsing failed
         }
         
-        console.log(`Parsed ${messages.length} messages for conversation ${convo.id}`);
+        // // console.log(`Parsed ${messages.length} messages for conversation ${convo.id}`);
         
         // Generate a new presigned URL if needed
         const fileUrl = await getPresignedUrl(bucket, key);
         
         // Update the URL in the database if it changed
         if (fileUrl !== convo.fileUrl) {
-            console.log(`Updating fileUrl for conversation ${convo.id}`);
+            // console.log(`Updating fileUrl for conversation ${convo.id}`);
             await prisma.conversation.update({
                 where: { id: convo.id },
                 data: { 
@@ -113,7 +113,7 @@ export async function fetchMessagesFromS3(conversations: Conversation[]) {
             ? aiMessages[aiMessages.length - 1].model 
             : "gpt-4o"; // Default model
 
-        console.log(`Successfully processed conversation ${convo.id}`);
+        // console.log(`Successfully processed conversation ${convo.id}`);
         
         return {
             ...convo,
@@ -157,7 +157,7 @@ export const createFolder = async (userId: string) => {
     });
 
     await client.send(putCommand);
-    console.log(`Successfully created folder in S3: ${BUCKET_NAME}/${userId}`);
+    // console.log(`Successfully created folder in S3: ${BUCKET_NAME}/${userId}`);
 }
 
 export const createDefaultChat = async (userId: string) => {
@@ -206,7 +206,7 @@ export const createDefaultChat = async (userId: string) => {
     });
   
     await client.send(command);
-    console.log(`Default chat created at: ${BUCKET_NAME}/${key}`);
+    // console.log(`Default chat created at: ${BUCKET_NAME}/${key}`);
 
     const fileUrl = await getPresignedUrl(BUCKET_NAME, key);
 
@@ -221,10 +221,10 @@ convoRouter.get('/list', async (req, res) => {
     const page = parseInt(req.query.page as string) || 1;
     const skip = (page - 1) * limit;
     
-    console.log(`Fetching conversations for user: ${userId}, page: ${page}, limit: ${limit}`);
+    // console.log(`Fetching conversations for user: ${userId}, page: ${page}, limit: ${limit}`);
     
     if (!userId) {
-        console.log('Missing userId in request');
+        // console.log('Missing userId in request');
         res.status(400).json({ error: 'User ID is required' });
         return;
     }
@@ -236,12 +236,12 @@ convoRouter.get('/list', async (req, res) => {
         });
 
         if (!user) {
-            console.log(`User not found: ${userId}`);
+            // console.log(`User not found: ${userId}`);
             res.status(404).json({ error: 'User not found' });
             return;
         }
 
-        console.log(`Found user: ${user.id} (${user.name})`);
+        // console.log(`Found user: ${user.id} (${user.name})`);
 
         // Get paginated conversations for the user
         const conversations = await prisma.conversation.findMany({
@@ -256,12 +256,12 @@ convoRouter.get('/list', async (req, res) => {
             where: { userId: user.id }
         });
 
-        console.log(`Found ${conversations.length} conversations for user ${userId} (page ${page}/${Math.ceil(totalCount / limit)})`);
+        // console.log(`Found ${conversations.length} conversations for user ${userId} (page ${page}/${Math.ceil(totalCount / limit)})`);
 
         // For each conversation, fetch messages from S3
         const conversationsWithMessages = await fetchMessagesFromS3(conversations);
 
-        console.log(`Returning ${conversationsWithMessages.length} conversations with messages`);
+        // console.log(`Returning ${conversationsWithMessages.length} conversations with messages`);
         res.status(200).json(conversationsWithMessages);
     } catch (error) {
         console.error('Error getting conversations:', error);
@@ -274,10 +274,10 @@ convoRouter.get('/:id', async (req, res) => {
     const { id } = req.params;
     const userId = req.headers['userid'] as string;
     
-    console.log(`Fetching conversation: ${id}`);
+    // console.log(`Fetching conversation: ${id}`);
     
     if (!userId) {
-        console.log('Missing userId in request');
+        // console.log('Missing userId in request');
         res.status(400).json({ error: 'User ID is required' });
         return;
     }
@@ -289,7 +289,7 @@ convoRouter.get('/:id', async (req, res) => {
         });
 
         if (!user) {
-            console.log(`User not found: ${userId}`);
+            // console.log(`User not found: ${userId}`);
             res.status(404).json({ error: 'User not found' });
             return;
         }
@@ -303,17 +303,17 @@ convoRouter.get('/:id', async (req, res) => {
         });
 
         if (!conversation) {
-            console.log(`Conversation ${id} not found or doesn't belong to user ${userId}`);
+            // console.log(`Conversation ${id} not found or doesn't belong to user ${userId}`);
             res.status(404).json({ error: 'Conversation not found or not authorized' });
             return;
         }
 
-        console.log(`Found conversation: ${id} - ${conversation.title}`);
+        // console.log(`Found conversation: ${id} - ${conversation.title}`);
 
         // Fetch messages from S3
         try {
             const [conversationWithMessages] = await fetchMessagesFromS3([conversation]);
-            console.log(`Successfully fetched messages for conversation ${id}`);
+            // console.log(`Successfully fetched messages for conversation ${id}`);
             
             res.status(200).json(conversationWithMessages);
         } catch (error) {
@@ -354,7 +354,7 @@ convoRouter.post('/create', async (req, res) => {
         
         // If the user doesn't exist, create them
         if (!user) {
-            console.log(`User ${userId} not found, creating a new user`);
+            // console.log(`User ${userId} not found, creating a new user`);
             try {
                 user = await prisma.user.create({
                     data: { 
@@ -369,7 +369,7 @@ convoRouter.post('/create', async (req, res) => {
                         }
                     }
                 });
-                console.log(`User created with ID: ${user.id}`);
+                // console.log(`User created with ID: ${user.id}`);
             } catch (userCreateError) {
                 console.error("Error creating user:", userCreateError);
                 res.status(500).json({ error: 'Failed to create user', details: userCreateError instanceof Error ? userCreateError.message : userCreateError });
@@ -414,8 +414,8 @@ convoRouter.post('/create', async (req, res) => {
         try {
             const fileName = `${user.id}/${chatId}.json`;
             const fileContent = JSON.stringify(initialMessages);
-            console.log(`Creating new conversation file: ${fileName} with content length: ${fileContent.length}`);
-            console.log(`Using bucket: ${BUCKET_NAME}`);
+            // console.log(`Creating new conversation file: ${fileName} with content length: ${fileContent.length}`);
+            // console.log(`Using bucket: ${BUCKET_NAME}`);
         
         const putCommand = new PutObjectCommand({
             Bucket: BUCKET_NAME,
@@ -425,11 +425,11 @@ convoRouter.post('/create', async (req, res) => {
         });
         
         await client.send(putCommand);
-        console.log(`Successfully created file in S3: ${BUCKET_NAME}/${fileName}`);
+        // console.log(`Successfully created file in S3: ${BUCKET_NAME}/${fileName}`);
 
         // Generate a presigned URL for access
         const fileUrl = await getPresignedUrl(BUCKET_NAME, fileName);
-        console.log(`Generated presigned URL: ${fileUrl}`);
+        // console.log(`Generated presigned URL: ${fileUrl}`);
 
         // Create the conversation with the fileUrl
         const conversation = await prisma.conversation.create({
@@ -443,7 +443,7 @@ convoRouter.post('/create', async (req, res) => {
             }
         });
         
-        console.log(`Created conversation in database: ${JSON.stringify(conversation)}`);
+        // console.log(`Created conversation in database: ${JSON.stringify(conversation)}`);
 
             // Return the complete conversation data including messages
             const conversationWithMessages = {
@@ -473,10 +473,10 @@ convoRouter.delete('/:id', async (req, res) => {
     const { id } = req.params;
     const userId = req.headers['userid'] as string;
     
-    console.log(`Request to delete conversation: ${id}`);
+    // console.log(`Request to delete conversation: ${id}`);
     
     if (!userId) {
-        console.log('Missing userId in delete request');
+        // console.log('Missing userId in delete request');
         res.status(400).json({ error: 'User ID is required' });
         return;
     }
@@ -488,7 +488,7 @@ convoRouter.delete('/:id', async (req, res) => {
         });
         
         if (!user) {
-            console.log(`User not found: ${userId}`);
+            // console.log(`User not found: ${userId}`);
             res.status(404).json({ error: 'User not found' });
             return;
         }
@@ -502,12 +502,12 @@ convoRouter.delete('/:id', async (req, res) => {
         });
 
         if (!conversation) {
-            console.log(`Conversation ${id} not found for deletion or doesn't belong to user ${userId}`);
+            // console.log(`Conversation ${id} not found for deletion or doesn't belong to user ${userId}`);
             res.status(404).json({ error: 'Conversation not found or not authorized' });
             return;
         }
 
-        console.log(`Found conversation to delete: ${conversation.id} (${conversation.title})`);
+        // console.log(`Found conversation to delete: ${conversation.id} (${conversation.title})`);
 
         // Delete the S3 file first
         let fileDeleted = false;
@@ -539,7 +539,7 @@ convoRouter.delete('/:id', async (req, res) => {
                 throw new Error('Could not extract bucket or key');
             }
             
-            console.log(`Deleting S3 file at bucket: ${bucket}, key: ${key}`);
+            // console.log(`Deleting S3 file at bucket: ${bucket}, key: ${key}`);
             
             const deleteCommand = new DeleteObjectCommand({
                 Bucket: bucket,
@@ -547,7 +547,7 @@ convoRouter.delete('/:id', async (req, res) => {
             });
             
             await client.send(deleteCommand);
-            console.log(`Successfully deleted S3 file: ${bucket}/${key}`);
+            // console.log(`Successfully deleted S3 file: ${bucket}/${key}`);
             fileDeleted = true;
         } catch (error) {
             console.error(`Error deleting S3 file for conversation ${id}:`, error);
@@ -558,7 +558,7 @@ convoRouter.delete('/:id', async (req, res) => {
         await prisma.conversation.delete({
             where: { id: conversation.id }
         });
-        console.log(`Successfully deleted conversation ${id} from database`);
+        // console.log(`Successfully deleted conversation ${id} from database`);
 
         res.status(200).json({ 
             success: true, 
@@ -579,7 +579,7 @@ export default convoRouter;
 
 // Append a message to a conversation (replace file)
 export const appendMessage = async (id: string, content: string, sender: string, timestamp: Date, model: string, stopped: boolean = false) => {
-    console.log(`Starting appendMessage for conversation ${id}`);
+    // console.log(`Starting appendMessage for conversation ${id}`);
     try {
         // Find the conversation
         const convo = await prisma.conversation.findUnique({ where: { id } });
@@ -588,7 +588,7 @@ export const appendMessage = async (id: string, content: string, sender: string,
             return { error: 'Conversation not found' };
         }
 
-        console.log(`Found conversation: ${JSON.stringify(convo)}`);
+        // console.log(`Found conversation: ${JSON.stringify(convo)}`);
         
         try {
             // Extract bucket and key from fileUrl using the same parsing approach as other functions
@@ -597,14 +597,14 @@ export const appendMessage = async (id: string, content: string, sender: string,
             const bucket = temp[4]; // Match format used in fetchMessagesFromS3
             const key = temp[5] + '/' + temp[6]; // Match format used in fetchMessagesFromS3
             
-            console.log(`Extracted bucket: ${bucket}, key: ${key}`);
+            // console.log(`Extracted bucket: ${bucket}, key: ${key}`);
             
             // 1. Fetch current messages
             const getObjectCommand = new GetObjectCommand({ Bucket: bucket, Key: key });
             const response = await client.send(getObjectCommand);
             const bodyContents = await streamToString(response.Body as NodeJS.ReadableStream);
             
-            console.log(`Retrieved file contents of length: ${bodyContents.length}`);
+            // console.log(`Retrieved file contents of length: ${bodyContents.length}`);
             
             // Parse the messages array
             let messages = [];
@@ -619,7 +619,7 @@ export const appendMessage = async (id: string, content: string, sender: string,
                 messages = []; // Reset to empty array if parsing failed
             }
             
-            console.log(`Parsed ${messages.length} existing messages`);
+            // console.log(`Parsed ${messages.length} existing messages`);
             
             // 2. Append new message
             const messageId = `${id}-${messages.length + 1}`;
@@ -633,7 +633,7 @@ export const appendMessage = async (id: string, content: string, sender: string,
             };
             
             messages.push(newMessage);
-            console.log(`Added new message with ID ${messageId}, total messages: ${messages.length}`);
+            // console.log(`Added new message with ID ${messageId}, total messages: ${messages.length}`);
             
             // 3. Upload updated array
             const messagesJson = JSON.stringify(messages);
@@ -645,7 +645,7 @@ export const appendMessage = async (id: string, content: string, sender: string,
             });
             
             await client.send(putCommand);
-            console.log(`Successfully uploaded updated messages to ${bucket}/${key}`);
+            // console.log(`Successfully uploaded updated messages to ${bucket}/${key}`);
             
             // 4. Update the conversation's updatedAt field
             await prisma.conversation.update({
@@ -653,7 +653,7 @@ export const appendMessage = async (id: string, content: string, sender: string,
                 data: { updatedAt: timestamp }
             });
             
-            console.log(`Updated conversation timestamp in database`);
+            // console.log(`Updated conversation timestamp in database`);
             
             return { success: true, message: newMessage, fileUrl: convo.fileUrl };
         } catch (error: any) {
@@ -671,7 +671,7 @@ convoRouter.get('/:id/check-file', async (req, res) => {
     const { id } = req.params;
     const userId = req.headers['userid'] as string;
     
-    console.log(`Checking file existence for conversation: ${id}`);
+    // console.log(`Checking file existence for conversation: ${id}`);
     
     if (!userId) {
         res.status(400).json({ error: 'User ID is required' });
@@ -776,14 +776,14 @@ convoRouter.get('/:id/check-file', async (req, res) => {
 // Helper function to parse S3 file path from fileUrl
 function parseS3PathFromFileUrl(fileUrl: string): { bucket: string, key: string } | null {
     try {
-        console.log(`Parsing S3 path from fileUrl: ${fileUrl}`);
+        // console.log(`Parsing S3 path from fileUrl: ${fileUrl}`);
         
         const url = new URL(fileUrl);
-        console.log(`Parsed URL: ${url.toString()}`);
-        console.log(`URL pathname: ${url.pathname}`);
+        // console.log(`Parsed URL: ${url.toString()}`);
+        // console.log(`URL pathname: ${url.pathname}`);
         
         const temp = url.pathname.split('/');
-        console.log(`Path parts: ${JSON.stringify(temp)}`);
+        // console.log(`Path parts: ${JSON.stringify(temp)}`);
         
         if (temp.length < 7) {
             console.error(`URL path does not have enough segments: ${url.pathname}`);
@@ -793,7 +793,7 @@ function parseS3PathFromFileUrl(fileUrl: string): { bucket: string, key: string 
         const bucket = temp[4];
         const key = temp[5] + '/' + temp[6];
         
-        console.log(`Extracted bucket: ${bucket}, key: ${key}`);
+        // console.log(`Extracted bucket: ${bucket}, key: ${key}`);
         
         if (!bucket || !key) {
             console.error(`Failed to extract bucket or key from path parts: ${JSON.stringify(temp)}`);

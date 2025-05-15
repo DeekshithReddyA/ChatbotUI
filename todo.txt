@@ -1,8 +1,13 @@
-// immediate things to do
+// bugs
 fix the loading spinners and frontend bug on conversation sidebar (active after deleting the convo)
+ModelSelection Bug: on new conversations, the default model is gpt-4o even after changing the model, from the second response, the model is changing 
+openAI models not supporting web search, gotta do MCP // least priority 
 
-// later things
-Write tests for the backend so far.
 
+// features to implement
 
+-> add more openAI and gemini models
+-> integrate claude
+-> other files as input
+-> generating image by google
 

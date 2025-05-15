@@ -5,6 +5,7 @@ import { Bot, Sparkles, Cpu, FileIcon } from "lucide-react";
 import LatexText from "./Latex";
 import { AnimatePresence, motion } from "framer-motion";
 import { AIModel } from "../types/AIModel";
+import { containsLatexMath, shouldRenderAsLatex } from "../lib/math-utils";
 
 interface Message {
   id: string;
@@ -54,8 +55,17 @@ function splitMarkdownAtIncompleteCodeBlock(text: string) {
   }
 }
 
+// Helper function to check if a string contains LaTeX content
+function containsLatex(str: string): boolean {
+  // Use the utility function from math-utils.ts
+  return containsLatexMath(str);
+}
+
 // Helper function to check if a string is a JSON array with image content
 function isJsonWithImages(str: string): boolean {
+  // If it contains LaTeX delimiters, don't try to parse as JSON
+  if (containsLatex(str)) return false;
+  
   try {
     if (!str.startsWith('[{') || !str.endsWith('}]')) return false;
     const parsed = JSON.parse(str);
@@ -307,7 +317,29 @@ export const Messages = ({
                 <div className="max-w-[95%] overflow-hidden">
                   <div className={cn("rounded-2xl shadow-md overflow-hidden", msg.sender === "user" ? "bg-accent text-accent-foreground rounded-tr-none" : "bg-card border border-border/40 text-foreground rounded-tl-none")}>
                     <div className="leading-8 px-2 py-1 break-words text-sm overflow-wrap-anywhere">
-                      {isJsonWithImages(typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)) ? renderMultimodalContent(typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)) : <LatexText content={typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)} />}
+                      {(() => {
+                        const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+                        
+                        // Special case for content with square bracket math expressions
+                        if (content.trim().startsWith('[') && content.trim().endsWith(']') && 
+                            (content.includes('\\frac') || content.includes('\\text') || 
+                             content.includes('\\left') || content.includes('\\right'))) {
+                          return <LatexText content={content} />;
+                        }
+                        
+                        // First check if there's LaTeX content in the message
+                        if (containsLatex(content)) {
+                          return <LatexText content={content} />;
+                        }
+                        
+                        // Then check if this is a multimodal message with images
+                        if (isJsonWithImages(content)) {
+                          return renderMultimodalContent(content);
+                        }
+                        
+                        // Default to regular LaTeX renderer for all other content
+                        return <LatexText content={content} />;
+                      })()}
                     </div>
                   </div>
                   <div className={cn("flex mt-1.5 text-xs text-muted-foreground", msg.sender === "user" ? "justify-end" : "justify-start")}>
@@ -352,9 +384,21 @@ export const Messages = ({
                 <div className="rounded-2xl px-2 py-1 bg-card border border-border/40 text-foreground shadow-md text-sm leading-8 break-words overflow-wrap-anywhere">
                   {/* Split streaming response for correct rendering */}
                   {(() => {
+                    // Special case for content with square bracket math expressions
+                    if (renderedResponse.trim().startsWith('[') && renderedResponse.trim().endsWith(']') && 
+                        (renderedResponse.includes('\\frac') || renderedResponse.includes('\\text') || 
+                         renderedResponse.includes('\\left') || renderedResponse.includes('\\right'))) {
+                      return <LatexText content={renderedResponse} />;
+                    }
+                    
                     // Check if the renderedResponse is a JSON string with multimodal content
                     if (isJsonWithImages(renderedResponse)) {
                       return renderMultimodalContent(renderedResponse);
+                    }
+                    
+                    // Check if the response contains LaTeX before trying to split by code blocks
+                    if (containsLatex(renderedResponse)) {
+                      return <LatexText content={renderedResponse} />;
                     }
                     
                     // Otherwise render as traditional markdown with potential code blocks

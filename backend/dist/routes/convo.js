@@ -56,13 +56,13 @@ function fetchMessagesFromS3(conversations) {
     return __awaiter(this, void 0, void 0, function* () {
         const conversationsWithMessages = yield Promise.all(conversations.map((convo) => __awaiter(this, void 0, void 0, function* () {
             try {
-                console.log(`Processing conversation: ${convo.id} - ${convo.title}`);
+                // // console.log(`Processing conversation: ${convo.id} - ${convo.title}`);
                 // Extract bucket and key from fileUrl
                 const url = new URL(convo.fileUrl);
                 const temp = url.pathname.split('/');
                 const bucket = temp[4];
                 const key = temp[5] + '/' + temp[6];
-                console.log(`Getting object from bucket: ${bucket}, key: ${key}`);
+                // // console.log(`Getting object from bucket: ${bucket}, key: ${key}`);
                 // Fetch messages from S3
                 const getObjectCommand = new client_s3_1.GetObjectCommand({
                     Bucket: bucket,
@@ -73,7 +73,7 @@ function fetchMessagesFromS3(conversations) {
                     throw new Error('Empty file content');
                 }
                 const bodyContents = yield streamToString(response.Body);
-                console.log(`Retrieved content of length: ${bodyContents.length}`);
+                // // console.log(`Retrieved content of length: ${bodyContents.length}`);
                 // Parse messages safely
                 let messages = [];
                 try {
@@ -87,12 +87,12 @@ function fetchMessagesFromS3(conversations) {
                     console.error(`Error parsing messages JSON: ${error}, content: ${bodyContents.substring(0, 100)}...`);
                     messages = []; // Reset to empty array if parsing failed
                 }
-                console.log(`Parsed ${messages.length} messages for conversation ${convo.id}`);
+                // // console.log(`Parsed ${messages.length} messages for conversation ${convo.id}`);
                 // Generate a new presigned URL if needed
                 const fileUrl = yield getPresignedUrl(bucket, key);
                 // Update the URL in the database if it changed
                 if (fileUrl !== convo.fileUrl) {
-                    console.log(`Updating fileUrl for conversation ${convo.id}`);
+                    // console.log(`Updating fileUrl for conversation ${convo.id}`);
                     yield config_1.default.conversation.update({
                         where: { id: convo.id },
                         data: {
@@ -111,7 +111,7 @@ function fetchMessagesFromS3(conversations) {
                 const model = aiMessages.length > 0
                     ? aiMessages[aiMessages.length - 1].model
                     : "gpt-4o"; // Default model
-                console.log(`Successfully processed conversation ${convo.id}`);
+                // console.log(`Successfully processed conversation ${convo.id}`);
                 return Object.assign(Object.assign({}, convo), { fileUrl, messages: {
                         id: convo.id,
                         title: convo.title,
@@ -141,7 +141,7 @@ const createFolder = (userId) => __awaiter(void 0, void 0, void 0, function* () 
         Body: 'application/json',
     });
     yield exports.client.send(putCommand);
-    console.log(`Successfully created folder in S3: ${exports.BUCKET_NAME}/${userId}`);
+    // console.log(`Successfully created folder in S3: ${BUCKET_NAME}/${userId}`);
 });
 exports.createFolder = createFolder;
 const createDefaultChat = (userId) => __awaiter(void 0, void 0, void 0, function* () {
@@ -186,7 +186,7 @@ const createDefaultChat = (userId) => __awaiter(void 0, void 0, void 0, function
         ContentType: "application/json",
     });
     yield exports.client.send(command);
-    console.log(`Default chat created at: ${exports.BUCKET_NAME}/${key}`);
+    // console.log(`Default chat created at: ${BUCKET_NAME}/${key}`);
     const fileUrl = yield getPresignedUrl(exports.BUCKET_NAME, key);
     return { fileUrl, chatId };
 });
@@ -197,9 +197,9 @@ convoRouter.get('/list', (req, res) => __awaiter(void 0, void 0, void 0, functio
     const limit = parseInt(req.query.limit) || 10;
     const page = parseInt(req.query.page) || 1;
     const skip = (page - 1) * limit;
-    console.log(`Fetching conversations for user: ${userId}, page: ${page}, limit: ${limit}`);
+    // console.log(`Fetching conversations for user: ${userId}, page: ${page}, limit: ${limit}`);
     if (!userId) {
-        console.log('Missing userId in request');
+        // console.log('Missing userId in request');
         res.status(400).json({ error: 'User ID is required' });
         return;
     }
@@ -209,11 +209,11 @@ convoRouter.get('/list', (req, res) => __awaiter(void 0, void 0, void 0, functio
             where: { userId }
         });
         if (!user) {
-            console.log(`User not found: ${userId}`);
+            // console.log(`User not found: ${userId}`);
             res.status(404).json({ error: 'User not found' });
             return;
         }
-        console.log(`Found user: ${user.id} (${user.name})`);
+        // console.log(`Found user: ${user.id} (${user.name})`);
         // Get paginated conversations for the user
         const conversations = yield config_1.default.conversation.findMany({
             where: { userId: user.id },
@@ -225,10 +225,10 @@ convoRouter.get('/list', (req, res) => __awaiter(void 0, void 0, void 0, functio
         const totalCount = yield config_1.default.conversation.count({
             where: { userId: user.id }
         });
-        console.log(`Found ${conversations.length} conversations for user ${userId} (page ${page}/${Math.ceil(totalCount / limit)})`);
+        // console.log(`Found ${conversations.length} conversations for user ${userId} (page ${page}/${Math.ceil(totalCount / limit)})`);
         // For each conversation, fetch messages from S3
         const conversationsWithMessages = yield fetchMessagesFromS3(conversations);
-        console.log(`Returning ${conversationsWithMessages.length} conversations with messages`);
+        // console.log(`Returning ${conversationsWithMessages.length} conversations with messages`);
         res.status(200).json(conversationsWithMessages);
     }
     catch (error) {
@@ -240,9 +240,9 @@ convoRouter.get('/list', (req, res) => __awaiter(void 0, void 0, void 0, functio
 convoRouter.get('/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;
     const userId = req.headers['userid'];
-    console.log(`Fetching conversation: ${id}`);
+    // console.log(`Fetching conversation: ${id}`);
     if (!userId) {
-        console.log('Missing userId in request');
+        // console.log('Missing userId in request');
         res.status(400).json({ error: 'User ID is required' });
         return;
     }
@@ -252,7 +252,7 @@ convoRouter.get('/:id', (req, res) => __awaiter(void 0, void 0, void 0, function
             where: { userId }
         });
         if (!user) {
-            console.log(`User not found: ${userId}`);
+            // console.log(`User not found: ${userId}`);
             res.status(404).json({ error: 'User not found' });
             return;
         }
@@ -264,15 +264,15 @@ convoRouter.get('/:id', (req, res) => __awaiter(void 0, void 0, void 0, function
             }
         });
         if (!conversation) {
-            console.log(`Conversation ${id} not found or doesn't belong to user ${userId}`);
+            // console.log(`Conversation ${id} not found or doesn't belong to user ${userId}`);
             res.status(404).json({ error: 'Conversation not found or not authorized' });
             return;
         }
-        console.log(`Found conversation: ${id} - ${conversation.title}`);
+        // console.log(`Found conversation: ${id} - ${conversation.title}`);
         // Fetch messages from S3
         try {
             const [conversationWithMessages] = yield fetchMessagesFromS3([conversation]);
-            console.log(`Successfully fetched messages for conversation ${id}`);
+            // console.log(`Successfully fetched messages for conversation ${id}`);
             res.status(200).json(conversationWithMessages);
         }
         catch (error) {
@@ -304,7 +304,7 @@ convoRouter.post('/create', (req, res) => __awaiter(void 0, void 0, void 0, func
         });
         // If the user doesn't exist, create them
         if (!user) {
-            console.log(`User ${userId} not found, creating a new user`);
+            // console.log(`User ${userId} not found, creating a new user`);
             try {
                 user = yield config_1.default.user.create({
                     data: {
@@ -319,7 +319,7 @@ convoRouter.post('/create', (req, res) => __awaiter(void 0, void 0, void 0, func
                         }
                     }
                 });
-                console.log(`User created with ID: ${user.id}`);
+                // console.log(`User created with ID: ${user.id}`);
             }
             catch (userCreateError) {
                 console.error("Error creating user:", userCreateError);
@@ -358,8 +358,8 @@ convoRouter.post('/create', (req, res) => __awaiter(void 0, void 0, void 0, func
         try {
             const fileName = `${user.id}/${chatId}.json`;
             const fileContent = JSON.stringify(initialMessages);
-            console.log(`Creating new conversation file: ${fileName} with content length: ${fileContent.length}`);
-            console.log(`Using bucket: ${exports.BUCKET_NAME}`);
+            // console.log(`Creating new conversation file: ${fileName} with content length: ${fileContent.length}`);
+            // console.log(`Using bucket: ${BUCKET_NAME}`);
             const putCommand = new client_s3_1.PutObjectCommand({
                 Bucket: exports.BUCKET_NAME,
                 Key: fileName,
@@ -367,10 +367,10 @@ convoRouter.post('/create', (req, res) => __awaiter(void 0, void 0, void 0, func
                 ContentType: 'application/json',
             });
             yield exports.client.send(putCommand);
-            console.log(`Successfully created file in S3: ${exports.BUCKET_NAME}/${fileName}`);
+            // console.log(`Successfully created file in S3: ${BUCKET_NAME}/${fileName}`);
             // Generate a presigned URL for access
             const fileUrl = yield getPresignedUrl(exports.BUCKET_NAME, fileName);
-            console.log(`Generated presigned URL: ${fileUrl}`);
+            // console.log(`Generated presigned URL: ${fileUrl}`);
             // Create the conversation with the fileUrl
             const conversation = yield config_1.default.conversation.create({
                 data: {
@@ -382,7 +382,7 @@ convoRouter.post('/create', (req, res) => __awaiter(void 0, void 0, void 0, func
                     updatedAt: new Date()
                 }
             });
-            console.log(`Created conversation in database: ${JSON.stringify(conversation)}`);
+            // console.log(`Created conversation in database: ${JSON.stringify(conversation)}`);
             // Return the complete conversation data including messages
             const conversationWithMessages = Object.assign(Object.assign({}, conversation), { messages: {
                     id: chatId,
@@ -405,9 +405,9 @@ convoRouter.post('/create', (req, res) => __awaiter(void 0, void 0, void 0, func
 convoRouter.delete('/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;
     const userId = req.headers['userid'];
-    console.log(`Request to delete conversation: ${id}`);
+    // console.log(`Request to delete conversation: ${id}`);
     if (!userId) {
-        console.log('Missing userId in delete request');
+        // console.log('Missing userId in delete request');
         res.status(400).json({ error: 'User ID is required' });
         return;
     }
@@ -417,7 +417,7 @@ convoRouter.delete('/:id', (req, res) => __awaiter(void 0, void 0, void 0, funct
             where: { userId }
         });
         if (!user) {
-            console.log(`User not found: ${userId}`);
+            // console.log(`User not found: ${userId}`);
             res.status(404).json({ error: 'User not found' });
             return;
         }
@@ -429,11 +429,11 @@ convoRouter.delete('/:id', (req, res) => __awaiter(void 0, void 0, void 0, funct
             }
         });
         if (!conversation) {
-            console.log(`Conversation ${id} not found for deletion or doesn't belong to user ${userId}`);
+            // console.log(`Conversation ${id} not found for deletion or doesn't belong to user ${userId}`);
             res.status(404).json({ error: 'Conversation not found or not authorized' });
             return;
         }
-        console.log(`Found conversation to delete: ${conversation.id} (${conversation.title})`);
+        // console.log(`Found conversation to delete: ${conversation.id} (${conversation.title})`);
         // Delete the S3 file first
         let fileDeleted = false;
         try {
@@ -458,13 +458,13 @@ convoRouter.delete('/:id', (req, res) => __awaiter(void 0, void 0, void 0, funct
                 console.error(`Could not extract bucket or key from fileUrl: ${conversation.fileUrl}`);
                 throw new Error('Could not extract bucket or key');
             }
-            console.log(`Deleting S3 file at bucket: ${bucket}, key: ${key}`);
+            // console.log(`Deleting S3 file at bucket: ${bucket}, key: ${key}`);
             const deleteCommand = new client_s3_1.DeleteObjectCommand({
                 Bucket: bucket,
                 Key: key
             });
             yield exports.client.send(deleteCommand);
-            console.log(`Successfully deleted S3 file: ${bucket}/${key}`);
+            // console.log(`Successfully deleted S3 file: ${bucket}/${key}`);
             fileDeleted = true;
         }
         catch (error) {
@@ -475,7 +475,7 @@ convoRouter.delete('/:id', (req, res) => __awaiter(void 0, void 0, void 0, funct
         yield config_1.default.conversation.delete({
             where: { id: conversation.id }
         });
-        console.log(`Successfully deleted conversation ${id} from database`);
+        // console.log(`Successfully deleted conversation ${id} from database`);
         res.status(200).json({
             success: true,
             message: 'Conversation deleted',
@@ -493,7 +493,7 @@ convoRouter.delete('/:id', (req, res) => __awaiter(void 0, void 0, void 0, funct
 exports.default = convoRouter;
 // Append a message to a conversation (replace file)
 const appendMessage = (id_1, content_1, sender_1, timestamp_1, model_1, ...args_1) => __awaiter(void 0, [id_1, content_1, sender_1, timestamp_1, model_1, ...args_1], void 0, function* (id, content, sender, timestamp, model, stopped = false) {
-    console.log(`Starting appendMessage for conversation ${id}`);
+    // console.log(`Starting appendMessage for conversation ${id}`);
     try {
         // Find the conversation
         const convo = yield config_1.default.conversation.findUnique({ where: { id } });
@@ -501,19 +501,19 @@ const appendMessage = (id_1, content_1, sender_1, timestamp_1, model_1, ...args_
             console.error(`Conversation ${id} not found`);
             return { error: 'Conversation not found' };
         }
-        console.log(`Found conversation: ${JSON.stringify(convo)}`);
+        // console.log(`Found conversation: ${JSON.stringify(convo)}`);
         try {
             // Extract bucket and key from fileUrl using the same parsing approach as other functions
             const url = new URL(convo.fileUrl);
             const temp = url.pathname.split('/');
             const bucket = temp[4]; // Match format used in fetchMessagesFromS3
             const key = temp[5] + '/' + temp[6]; // Match format used in fetchMessagesFromS3
-            console.log(`Extracted bucket: ${bucket}, key: ${key}`);
+            // console.log(`Extracted bucket: ${bucket}, key: ${key}`);
             // 1. Fetch current messages
             const getObjectCommand = new client_s3_1.GetObjectCommand({ Bucket: bucket, Key: key });
             const response = yield exports.client.send(getObjectCommand);
             const bodyContents = yield streamToString(response.Body);
-            console.log(`Retrieved file contents of length: ${bodyContents.length}`);
+            // console.log(`Retrieved file contents of length: ${bodyContents.length}`);
             // Parse the messages array
             let messages = [];
             try {
@@ -527,7 +527,7 @@ const appendMessage = (id_1, content_1, sender_1, timestamp_1, model_1, ...args_
                 console.error(`Error parsing messages JSON: ${error}, content: ${bodyContents.substring(0, 100)}...`);
                 messages = []; // Reset to empty array if parsing failed
             }
-            console.log(`Parsed ${messages.length} existing messages`);
+            // console.log(`Parsed ${messages.length} existing messages`);
             // 2. Append new message
             const messageId = `${id}-${messages.length + 1}`;
             const newMessage = {
@@ -539,7 +539,7 @@ const appendMessage = (id_1, content_1, sender_1, timestamp_1, model_1, ...args_
                 stopped: stopped // Include the stopped flag 
             };
             messages.push(newMessage);
-            console.log(`Added new message with ID ${messageId}, total messages: ${messages.length}`);
+            // console.log(`Added new message with ID ${messageId}, total messages: ${messages.length}`);
             // 3. Upload updated array
             const messagesJson = JSON.stringify(messages);
             const putCommand = new client_s3_1.PutObjectCommand({
@@ -549,13 +549,13 @@ const appendMessage = (id_1, content_1, sender_1, timestamp_1, model_1, ...args_
                 ContentType: 'application/json',
             });
             yield exports.client.send(putCommand);
-            console.log(`Successfully uploaded updated messages to ${bucket}/${key}`);
+            // console.log(`Successfully uploaded updated messages to ${bucket}/${key}`);
             // 4. Update the conversation's updatedAt field
             yield config_1.default.conversation.update({
                 where: { id },
                 data: { updatedAt: timestamp }
             });
-            console.log(`Updated conversation timestamp in database`);
+            // console.log(`Updated conversation timestamp in database`);
             return { success: true, message: newMessage, fileUrl: convo.fileUrl };
         }
         catch (error) {
@@ -573,7 +573,7 @@ exports.appendMessage = appendMessage;
 convoRouter.get('/:id/check-file', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;
     const userId = req.headers['userid'];
-    console.log(`Checking file existence for conversation: ${id}`);
+    // console.log(`Checking file existence for conversation: ${id}`);
     if (!userId) {
         res.status(400).json({ error: 'User ID is required' });
         return;
@@ -664,19 +664,19 @@ convoRouter.get('/:id/check-file', (req, res) => __awaiter(void 0, void 0, void 
 // Helper function to parse S3 file path from fileUrl
 function parseS3PathFromFileUrl(fileUrl) {
     try {
-        console.log(`Parsing S3 path from fileUrl: ${fileUrl}`);
+        // console.log(`Parsing S3 path from fileUrl: ${fileUrl}`);
         const url = new URL(fileUrl);
-        console.log(`Parsed URL: ${url.toString()}`);
-        console.log(`URL pathname: ${url.pathname}`);
+        // console.log(`Parsed URL: ${url.toString()}`);
+        // console.log(`URL pathname: ${url.pathname}`);
         const temp = url.pathname.split('/');
-        console.log(`Path parts: ${JSON.stringify(temp)}`);
+        // console.log(`Path parts: ${JSON.stringify(temp)}`);
         if (temp.length < 7) {
             console.error(`URL path does not have enough segments: ${url.pathname}`);
             return null;
         }
         const bucket = temp[4];
         const key = temp[5] + '/' + temp[6];
-        console.log(`Extracted bucket: ${bucket}, key: ${key}`);
+        // console.log(`Extracted bucket: ${bucket}, key: ${key}`);
         if (!bucket || !key) {
             console.error(`Failed to extract bucket or key from path parts: ${JSON.stringify(temp)}`);
             return null;

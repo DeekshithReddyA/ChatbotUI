@@ -20,92 +20,84 @@ var __asyncGenerator = (this && this.__asyncGenerator) || function (thisArg, _ar
     function settle(f, v) { if (f(v), q.shift(), q.length) resume(q[0][0], q[0][1]); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.openaiModels = void 0;
+exports.allModels = void 0;
 exports.generateStreamText = generateStreamText;
-const ai_1 = require("ai");
-const openai_1 = require("@ai-sdk/openai");
-const google_1 = require("@ai-sdk/google");
-// Define valid OpenAI model names as a constant object
-exports.openaiModels = {
-    "gpt-4o-mini": "gpt-4o-mini",
-    "gpt-4o": "gpt-4o",
-    "gpt-3.5-turbo": "gpt-3.5-turbo",
-    "gpt-3.5-turbo-0125": "gpt-3.5-turbo-0125",
-    "gemini-1.5-flash": "gemini-1.5-flash",
-    "gemini-1.5-pro": "gemini-1.5-pro",
-    "gemini-2.0-flash": "gemini-2.0-flash",
-    "gemini-2.0-flash-lite": "gemini-2.0-flash-lite"
-};
+const google_1 = require("./google");
+const openai_1 = require("./openai");
+// Combine both model types for validation
+exports.allModels = Object.assign(Object.assign({}, openai_1.openaiModels), google_1.googleModels);
 // Create a Set of valid model names for fast lookup
-const validModelValues = new Set(Object.values(exports.openaiModels));
+const validModelValues = new Set(Object.values(exports.allModels));
+// Unified generator function that routes to the appropriate implementation
 function generateStreamText(messages, model) {
     return __asyncGenerator(this, arguments, function* generateStreamText_1() {
-        var _a, e_1, _b, _c;
-        let MODEL;
-        const family = model.split("-")[0];
+        var _a, e_1, _b, _c, _d, e_2, _e, _f, _g, e_3, _h, _j;
         try {
-            switch (family) {
-                case "gpt":
-                    MODEL = (0, openai_1.openai)(model);
-                    break;
-                case "gemini":
-                    MODEL = (0, google_1.google)(model);
-                    break;
-                default:
-                    MODEL = (0, google_1.google)("gemini-2.0-flash");
-                    break;
-            }
-            // Validate the model
+            // Determine the model family from the model name
+            const family = model.split("-")[0];
+            // Validate that this is a known model
             if (!validModelValues.has(model)) {
                 throw new Error(`Invalid model name: "${model}". Valid models are: ${Array.from(validModelValues).join(", ")}`);
             }
-            // Ensure messages are properly formatted for multimodal content
-            const formattedMessages = messages.map((msg) => {
-                // Some models handle multimodal content differently
-                // Make sure the content format is correct for each provider
-                if (Array.isArray(msg.content)) {
-                    // Check for oversized content and provide warning
-                    const totalSize = JSON.stringify(msg.content).length;
-                    if (totalSize > 20 * 1024 * 1024) { // 20MB limit
-                        console.warn(`Warning: Very large message detected (${Math.round(totalSize / 1024 / 1024)}MB). This may cause issues.`);
+            // Route to the appropriate implementation based on model family
+            if (family === "gpt") {
+                // Route to OpenAI implementation
+                const openaiTextStream = (0, openai_1.generateOpenAIStreamText)(messages, model);
+                try {
+                    for (var _k = true, openaiTextStream_1 = __asyncValues(openaiTextStream), openaiTextStream_1_1; openaiTextStream_1_1 = yield __await(openaiTextStream_1.next()), _a = openaiTextStream_1_1.done, !_a; _k = true) {
+                        _c = openaiTextStream_1_1.value;
+                        _k = false;
+                        const text = _c;
+                        yield yield __await(text);
                     }
-                    // If using Google models, ensure image URLs use the correct format
-                    if (family === "gemini") {
-                        return Object.assign(Object.assign({}, msg), { content: msg.content.map((part) => {
-                                if (part.type === 'image' && part.image) {
-                                    // For data URLs, Google models require the base64 portion only, without the prefix
-                                    if (typeof part.image === 'string' && part.image.startsWith('data:')) {
-                                        const base64Data = part.image.split(',')[1];
-                                        return Object.assign(Object.assign({}, part), { image: base64Data });
-                                    }
-                                }
-                                return part;
-                            }) });
-                    }
-                    // For OpenAI models, the format should be correct as is
-                    return msg;
                 }
-                return msg;
-            });
-            const { textStream } = (0, ai_1.streamText)({
-                model: MODEL,
-                messages: formattedMessages,
-                maxTokens: 4096 // Set a reasonable limit to prevent overflows
-            });
-            try {
-                for (var _d = true, textStream_1 = __asyncValues(textStream), textStream_1_1; textStream_1_1 = yield __await(textStream_1.next()), _a = textStream_1_1.done, !_a; _d = true) {
-                    _c = textStream_1_1.value;
-                    _d = false;
-                    const textPart = _c;
-                    yield yield __await(textPart);
+                catch (e_1_1) { e_1 = { error: e_1_1 }; }
+                finally {
+                    try {
+                        if (!_k && !_a && (_b = openaiTextStream_1.return)) yield __await(_b.call(openaiTextStream_1));
+                    }
+                    finally { if (e_1) throw e_1.error; }
                 }
             }
-            catch (e_1_1) { e_1 = { error: e_1_1 }; }
-            finally {
+            else if (family === "gemini") {
+                // Route to Google implementation
+                const googleTextStream = (0, google_1.generateGoogleStreamText)(messages, model);
                 try {
-                    if (!_d && !_a && (_b = textStream_1.return)) yield __await(_b.call(textStream_1));
+                    for (var _l = true, googleTextStream_1 = __asyncValues(googleTextStream), googleTextStream_1_1; googleTextStream_1_1 = yield __await(googleTextStream_1.next()), _d = googleTextStream_1_1.done, !_d; _l = true) {
+                        _f = googleTextStream_1_1.value;
+                        _l = false;
+                        const text = _f;
+                        yield yield __await(text);
+                    }
                 }
-                finally { if (e_1) throw e_1.error; }
+                catch (e_2_1) { e_2 = { error: e_2_1 }; }
+                finally {
+                    try {
+                        if (!_l && !_d && (_e = googleTextStream_1.return)) yield __await(_e.call(googleTextStream_1));
+                    }
+                    finally { if (e_2) throw e_2.error; }
+                }
+            }
+            else {
+                // Use a default model as fallback (Google in this case)
+                console.warn(`Unknown model family "${family}", defaulting to Google model`);
+                const defaultModelName = "gemini-2.0-flash";
+                const googleTextStream = (0, google_1.generateGoogleStreamText)(messages, defaultModelName);
+                try {
+                    for (var _m = true, googleTextStream_2 = __asyncValues(googleTextStream), googleTextStream_2_1; googleTextStream_2_1 = yield __await(googleTextStream_2.next()), _g = googleTextStream_2_1.done, !_g; _m = true) {
+                        _j = googleTextStream_2_1.value;
+                        _m = false;
+                        const text = _j;
+                        yield yield __await(text);
+                    }
+                }
+                catch (e_3_1) { e_3 = { error: e_3_1 }; }
+                finally {
+                    try {
+                        if (!_m && !_g && (_h = googleTextStream_2.return)) yield __await(_h.call(googleTextStream_2));
+                    }
+                    finally { if (e_3) throw e_3.error; }
+                }
             }
         }
         catch (error) {
