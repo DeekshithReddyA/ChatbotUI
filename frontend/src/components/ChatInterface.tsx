@@ -573,7 +573,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
           title: title,
           messages: [newMessage]
         },
-        model: getDefaultModel(props.models), // Use default model function
+        model: currentConversation?.model || getDefaultModel(props.models), // Use current model if available
       };
       
       // Update conversations and set this as active
@@ -597,8 +597,8 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
           content: messageContent
         }];
         
-        // Determine which model to use (default if new conversation)
-        const modelToUse = getDefaultModel(props.models);
+        // Determine which model to use (use current conversation model if available)
+        const modelToUse = currentConversation?.model || getDefaultModel(props.models);
         
         // Create a new SSE connection for a new conversation
         streamSource.current = new SSE(`${BACKEND_URL}/api/chat`, {

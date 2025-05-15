@@ -83,6 +83,7 @@ function generateGoogleStreamText(messages, modelName) {
             });
             const { textStream } = (0, ai_1.streamText)({
                 model: MODEL,
+                system: "You are a helpful and harmless AI assistant, You are designed to be informative and engaging",
                 messages: formattedMessages,
                 maxTokens: 4096 // Set a reasonable limit to prevent overflows
             });

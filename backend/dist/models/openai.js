@@ -25,6 +25,7 @@ exports.isValidOpenAIModel = isValidOpenAIModel;
 exports.generateOpenAIStreamText = generateOpenAIStreamText;
 const ai_1 = require("ai");
 const openai_1 = require("@ai-sdk/openai");
+const config_1 = require("../config");
 // Define valid OpenAI model names as a constant object
 exports.openaiModels = {
     // "gpt-4o-mini": "gpt-4o-mini",
@@ -65,16 +66,13 @@ function generateOpenAIStreamText(messages, modelName) {
             if (!isValidOpenAIModel(modelName)) {
                 throw new Error(`Invalid OpenAI model name: "${modelName}". Valid models are: ${Array.from(validOpenAIModelValues).join(", ")}`);
             }
-            if (modelName === "gpt-4o-mini") {
-                console.log("Using gpt-4o-mini-search-preview");
-                modelName = "gpt-4o-mini-search-preview";
-            }
             // Format messages for OpenAI
             const formattedMessages = formatMessagesForOpenAI(messages);
             // Initialize the model
             const MODEL = (0, openai_1.openai)(modelName);
             const { textStream } = (0, ai_1.streamText)({
                 model: MODEL,
+                system: config_1.prompt,
                 messages: formattedMessages,
             });
             try {

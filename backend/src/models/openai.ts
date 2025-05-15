@@ -1,5 +1,6 @@
 import { streamText } from "ai";
 import { openai } from "@ai-sdk/openai";
+import { prompt } from "../config";
 
 // Define valid OpenAI model names as a constant object
 export const openaiModels = {
@@ -49,10 +50,6 @@ export async function* generateOpenAIStreamText(messages: any[], modelName: stri
                 `Invalid OpenAI model name: "${modelName}". Valid models are: ${Array.from(validOpenAIModelValues).join(", ")}`
             );
         }
-        if(modelName === "gpt-4o-mini"){
-            console.log("Using gpt-4o-mini-search-preview");
-            modelName = "gpt-4o-mini-search-preview";
-        }
 
         // Format messages for OpenAI
         const formattedMessages = formatMessagesForOpenAI(messages);
@@ -62,6 +59,7 @@ export async function* generateOpenAIStreamText(messages: any[], modelName: stri
 
         const { textStream } = streamText({
             model: MODEL,
+            system: prompt,
             messages: formattedMessages,
         });
 

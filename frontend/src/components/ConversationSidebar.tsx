@@ -1,4 +1,4 @@
-import { ScrollArea } from "@radix-ui/react-scroll-area"
+import { ScrollArea } from "./ui/ScrollArea"
 import { MessageSquareIcon } from "./icons/MessageSquareIcon"
 import { PlusIcon } from "./icons/PlusIcon"
 import { Button } from "./ui/Button"
@@ -86,11 +86,12 @@ export const ConversationSidebar = (props: ConversationSidebarProps) => {
     
     // Handle scroll to detect when user reached the bottom
     const handleScroll = (e: any) => {
-        const scrollElement = e.currentTarget;
+        const viewport = e.currentTarget.querySelector("[data-radix-scroll-area-viewport]");
+        if (!viewport) return;
         
         // Check if we're near the bottom (within 100px)
         const isNearBottom = 
-            scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight < 100;
+            viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 100;
             
         // Load more conversations if near bottom and more are available
         if (isNearBottom && props.hasMore && !props.isLoadingMore && props.onLoadMore) {
@@ -144,69 +145,71 @@ export const ConversationSidebar = (props: ConversationSidebarProps) => {
                 </div>
             </div>
             {/* Conversations List */} 
-            <ScrollArea className="flex-1 px-2" ref={scrollAreaRef} onScroll={handleScroll}>
-                <div className="space-y-1 py-2">
-                    {props.conversations.length === 0 ? (
-                        <div className="px-3 py-6 text-center text-muted-foreground text-sm">
-                            No conversations yet
-                        </div>
-                    ) : props.conversations.map((conversation) => {
-                        const isActive = props.activeConversation === conversation.id || conversation.selected;
-                        const isDeleting = deletingId === conversation.id;
-                        
-                        return(
-                            <div
-                            key={conversation.id}
-                            className={cn(
-                              "group flex items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-all duration-200 hover:bg-accent/20 relative",
-                              isActive
-                                ? "bg-primary/30 text-primary-foreground shadow-sm border-l-2 border-accent font-medium"
-                                : "text-muted-foreground",
-                            )}
-                            onClick={() => props.onSelectConversation(conversation.id)}
-                            onMouseEnter={() => setHoveredId(conversation.id)}
-                            onMouseLeave={() => setHoveredId(null)}
-                          >
-                            <div className="flex flex-col overflow-hidden">
-                              <span
-                                className={cn(
-                                  "truncate font-medium text-sm",
-                                  isActive && "text-accent",
-                                )}
-                              >
-                                {conversation.title || 'Untitled Conversation'}
-                              </span>
-                              <span className="truncate text-xs opacity-70 mt-0.5">
-                                {formatMessagePreview(conversation.lastMessage)}
-                              </span>
+            <div className="flex-1 min-h-0 overflow-hidden">
+                <ScrollArea className="h-full px-2" ref={scrollAreaRef} onScroll={handleScroll}>
+                    <div className="space-y-1 py-2">
+                        {props.conversations.length === 0 ? (
+                            <div className="px-3 py-6 text-center text-muted-foreground text-sm">
+                                No conversations yet
                             </div>
-            
-                            {isDeleting ? (
-                                <div className="h-6 w-6 opacity-70">
-                                    <LoadingSpinner size="small" centered={false} />
-                                </div>
-                            ) : ((hoveredId === conversation.id || isActive) && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 opacity-100 hover:bg-transparent hover:scale-110 hover:text-red-500 flex items-center justify-center"
-                                onClick={(e) => handleDelete(conversation.id, e)}
+                        ) : props.conversations.map((conversation) => {
+                            const isActive = props.activeConversation === conversation.id || conversation.selected;
+                            const isDeleting = deletingId === conversation.id;
+                            
+                            return(
+                                <div
+                                key={conversation.id}
+                                className={cn(
+                                  "group flex items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-all duration-200 hover:bg-accent/20 relative",
+                                  isActive
+                                    ? "bg-primary/30 text-primary-foreground shadow-sm border-l-2 border-accent font-medium"
+                                    : "text-muted-foreground",
+                                )}
+                                onClick={() => props.onSelectConversation(conversation.id)}
+                                onMouseEnter={() => setHoveredId(conversation.id)}
+                                onMouseLeave={() => setHoveredId(null)}
                               >
-                                <TrashIcon size={14} />
-                              </Button>
-                            ))}
-                          </div>
-                        )
-                    })}
-                    
-                    {/* Loading indicator */}
-                    {props.isLoadingMore && (
-                        <div className="py-3">
-                            <LoadingSpinner size="small" message="Loading more..." centered={false} />
-                        </div>
-                    )}
-                </div>
-            </ScrollArea>
+                                <div className="flex flex-col overflow-hidden">
+                                  <span
+                                    className={cn(
+                                      "truncate font-medium text-sm",
+                                      isActive && "text-accent",
+                                    )}
+                                  >
+                                    {conversation.title || 'Untitled Conversation'}
+                                  </span>
+                                  <span className="truncate text-xs opacity-70 mt-0.5">
+                                    {formatMessagePreview(conversation.lastMessage)}
+                                  </span>
+                                </div>
+            
+                                {isDeleting ? (
+                                    <div className="h-6 w-6 opacity-70">
+                                        <LoadingSpinner size="small" centered={false} />
+                                    </div>
+                                ) : ((hoveredId === conversation.id || isActive) && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 opacity-100 hover:bg-transparent hover:scale-110 hover:text-red-500 flex items-center justify-center"
+                                    onClick={(e) => handleDelete(conversation.id, e)}
+                                  >
+                                    <TrashIcon size={14} />
+                                  </Button>
+                                ))}
+                              </div>
+                            )
+                        })}
+                        
+                        {/* Loading indicator */}
+                        {props.isLoadingMore && (
+                            <div className="py-3">
+                                <LoadingSpinner size="small" message="Loading more..." centered={false} />
+                            </div>
+                        )}
+                    </div>
+                </ScrollArea>
+            </div>
             
             <div className="p-3 space-y-2 mt-auto border-t border-border/40 bg-gradient-to-r from-accent/10 to-accent/25">
                 <Button 

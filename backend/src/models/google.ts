@@ -73,6 +73,7 @@ export async function* generateGoogleStreamText(messages: any[], modelName: stri
 
         const { textStream } = streamText({
             model: MODEL,
+            system: "You are a helpful and harmless AI assistant, You are designed to be informative and engaging",
             messages: formattedMessages,
             maxTokens: 4096 // Set a reasonable limit to prevent overflows
         });
