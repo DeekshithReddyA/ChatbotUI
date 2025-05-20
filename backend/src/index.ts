@@ -233,7 +233,7 @@ app.post('/api/pinnedModels' , async (req, res) => {
 });
 
 app.post('/api/chat', async (req, res) => {
-  const { messages, model, files } = req.body;
+  const { messages, model, files, search } = req.body;
 
   console.log("Request", req.body);
   const userId = req.headers['userid'] as string;
@@ -338,6 +338,10 @@ app.post('/api/chat', async (req, res) => {
       const isImageIncompatibleModel = [
         'gpt-4', 'o3-mini', 'o3', 'o4-mini', 'o1-preview'
       ].includes(actualModel);
+
+      if(search === true){
+        actualModel = "gpt-4o-mini-search-preview";
+      }
 
       console.log(`Using model: ${actualModel}`);
       const textStream = generateStreamText(formattedMessages, actualModel);

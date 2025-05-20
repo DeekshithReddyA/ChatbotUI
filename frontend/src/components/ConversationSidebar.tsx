@@ -8,6 +8,7 @@ import { TrashIcon, XIcon } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useState, useRef, useEffect } from "react";
 import { LoadingSpinner } from "./LoadingSpinner";
+import { useNavigate } from "react-router-dom";
 
 interface ConversationSidebarProps {
     conversations: any[];  // Need to change this type to Conversation[] type        
@@ -83,6 +84,7 @@ export const ConversationSidebar = (props: ConversationSidebarProps) => {
     const [hoveredId, setHoveredId] = useState<string | null>(null);
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const scrollAreaRef = useRef<HTMLDivElement>(null);
+    const navigate = useNavigate();
     
     // Handle scroll to detect when user reached the bottom
     const handleScroll = (e: any) => {
@@ -115,7 +117,13 @@ export const ConversationSidebar = (props: ConversationSidebarProps) => {
         <div className="flex flex-col h-full w-full border-r border-border/40 bg-card">
             {/* Logo and Close Button */}
             <div className="p-4 flex justify-between items-center bg-gradient-to-r from-accent/15 to-accent/5">
-                <div className="font-semibold">TARS AI</div>
+                <div
+                onClick={(e) =>{
+                    e.preventDefault();
+                    navigate('/');
+                }
+                }
+                className="font-semibold cursor-pointer">TARS AI</div>
                 <Button 
                     onClick={props.onCloseSidebar}
                     size="icon"

@@ -28,7 +28,7 @@ export async function* generateStreamText(messages: any, model: string) {
         }
 
         // Route to the appropriate implementation based on model family
-        if (family === "gpt") {
+        if (family === "gpt" || family.startsWith("o")) {
             // Route to OpenAI implementation
             const openaiTextStream = generateOpenAIStreamText(messages, model);
             for await (const text of openaiTextStream) {

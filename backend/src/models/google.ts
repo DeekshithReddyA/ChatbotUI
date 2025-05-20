@@ -79,7 +79,6 @@ export async function* generateGoogleStreamText(messages: any[], modelName: stri
         });
 
         for await (const textPart of textStream) {
-            console.log(textPart);
             yield textPart;
         }
     } catch (error) {

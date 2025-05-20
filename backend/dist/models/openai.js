@@ -25,16 +25,17 @@ exports.isValidOpenAIModel = isValidOpenAIModel;
 exports.generateOpenAIStreamText = generateOpenAIStreamText;
 const ai_1 = require("ai");
 const openai_1 = require("@ai-sdk/openai");
-const config_1 = require("../config");
 // Define valid OpenAI model names as a constant object
 exports.openaiModels = {
-    // "gpt-4o-mini": "gpt-4o-mini",
     "gpt-4o-mini": "gpt-4o-mini",
+    "gpt-4o-mini-search-preview": "gpt-4o-mini-search-preview",
     "gpt-4o": "gpt-4o",
     "gpt-3.5-turbo": "gpt-3.5-turbo",
     "gpt-3.5-turbo-0125": "gpt-3.5-turbo-0125",
     "gpt-4.1-nano": "gpt-4.1-nano",
-    "o4-mini": "o4-mini"
+    "gpt-4.1-mini": "gpt-4.1-mini",
+    "gpt-4.1": "gpt-4.1",
+    "o4-mini": "o4-mini",
 };
 // Create a Set of valid model names for fast lookup
 const validOpenAIModelValues = new Set(Object.values(exports.openaiModels));
@@ -72,7 +73,6 @@ function generateOpenAIStreamText(messages, modelName) {
             const MODEL = (0, openai_1.openai)(modelName);
             const { textStream } = (0, ai_1.streamText)({
                 model: MODEL,
-                system: config_1.prompt,
                 messages: formattedMessages,
             });
             try {

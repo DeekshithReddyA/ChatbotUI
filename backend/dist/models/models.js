@@ -40,8 +40,9 @@ function generateStreamText(messages, model) {
                 throw new Error(`Invalid model name: "${model}". Valid models are: ${Array.from(validModelValues).join(", ")}`);
             }
             // Route to the appropriate implementation based on model family
-            if (family === "gpt") {
+            if (family === "gpt" || family.startsWith("o")) {
                 // Route to OpenAI implementation
+                // if (model === "gpt-4o-mini") model="gpt-4o-mini-search-preview";
                 const openaiTextStream = (0, openai_1.generateOpenAIStreamText)(messages, model);
                 try {
                     for (var _k = true, openaiTextStream_1 = __asyncValues(openaiTextStream), openaiTextStream_1_1; openaiTextStream_1_1 = yield __await(openaiTextStream_1.next()), _a = openaiTextStream_1_1.done, !_a; _k = true) {

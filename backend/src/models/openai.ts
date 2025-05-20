@@ -4,24 +4,26 @@ import { prompt } from "../config";
 
 // Define valid OpenAI model names as a constant object
 export const openaiModels = {
-    // "gpt-4o-mini": "gpt-4o-mini",
     "gpt-4o-mini": "gpt-4o-mini",
+    "gpt-4o-mini-search-preview": "gpt-4o-mini-search-preview",
     "gpt-4o": "gpt-4o",
     "gpt-3.5-turbo": "gpt-3.5-turbo",
     "gpt-3.5-turbo-0125": "gpt-3.5-turbo-0125",
     "gpt-4.1-nano": "gpt-4.1-nano",
-    "o4-mini": "o4-mini"
-} as const;
+    "gpt-4.1-mini": "gpt-4.1-mini",
+    "gpt-4.1": "gpt-4.1-2025-04-14",
+    "o4-mini": "o4-mini",
+};
 
 // Type for allowed model values
 export type OpenAIModel = (typeof openaiModels)[keyof typeof openaiModels];
 
 // Create a Set of valid model names for fast lookup
-const validOpenAIModelValues = new Set<OpenAIModel>(Object.values(openaiModels));
+const validOpenAIModelValues = new Set<string>(Object.keys(openaiModels));
 
 // Helper function to validate OpenAI model
 export function isValidOpenAIModel(model: string): boolean {
-    return validOpenAIModelValues.has(model as OpenAIModel);
+    return model in openaiModels;
 }
 
 // Function to format messages for OpenAI
@@ -55,16 +57,14 @@ export async function* generateOpenAIStreamText(messages: any[], modelName: stri
         const formattedMessages = formatMessagesForOpenAI(messages);
         
         // Initialize the model
-        const MODEL = openai(modelName as OpenAIModel);
+        const MODEL = openai(openaiModels[modelName as keyof typeof openaiModels]);
 
         const { textStream } = streamText({
             model: MODEL,
-            system: prompt,
             messages: formattedMessages,
         });
 
         for await (const textPart of textStream) {
-            console.log(textPart);
             yield textPart;
         }
     } catch (error) {

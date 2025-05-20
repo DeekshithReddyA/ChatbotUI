@@ -255,7 +255,7 @@ app.post('/api/pinnedModels', (req, res) => __awaiter(void 0, void 0, void 0, fu
 }));
 app.post('/api/chat', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, e_1, _b, _c;
-    const { messages, model, files } = req.body;
+    const { messages, model, files, search } = req.body;
     console.log("Request", req.body);
     const userId = req.headers['userid'];
     // Track the conversation if ID is provided
@@ -341,6 +341,9 @@ app.post('/api/chat', (req, res) => __awaiter(void 0, void 0, void 0, function* 
             const isImageIncompatibleModel = [
                 'gpt-4', 'o3-mini', 'o3', 'o4-mini', 'o1-preview'
             ].includes(actualModel);
+            if (search) {
+                actualModel = "gpt-4o-mini-search-preview";
+            }
             console.log(`Using model: ${actualModel}`);
             const textStream = (0, models_1.generateStreamText)(formattedMessages, actualModel);
             let responseText = ''; // Accumulate the full response
