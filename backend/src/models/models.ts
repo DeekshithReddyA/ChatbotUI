@@ -12,7 +12,7 @@ export const allModels = {
 export type AnyModel = (typeof allModels)[keyof typeof allModels];
 
 // Create a Set of valid model names for fast lookup
-const validModelValues = new Set<AnyModel>(Object.values(allModels));
+const validModelValues = new Set<AnyModel>(Object.keys(allModels));
 
 // Unified generator function that routes to the appropriate implementation
 export async function* generateStreamText(messages: any, model: string) {

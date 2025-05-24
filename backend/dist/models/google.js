@@ -92,7 +92,6 @@ function generateGoogleStreamText(messages, modelName) {
                     _c = textStream_1_1.value;
                     _d = false;
                     const textPart = _c;
-                    console.log(textPart);
                     yield yield __await(textPart);
                 }
             }

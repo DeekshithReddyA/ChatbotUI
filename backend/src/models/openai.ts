@@ -23,7 +23,7 @@ const validOpenAIModelValues = new Set<string>(Object.keys(openaiModels));
 
 // Helper function to validate OpenAI model
 export function isValidOpenAIModel(model: string): boolean {
-    return model in openaiModels;
+    return Object.keys(openaiModels).includes(model);
 }
 
 // Function to format messages for OpenAI

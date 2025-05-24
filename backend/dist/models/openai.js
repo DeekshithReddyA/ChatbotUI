@@ -34,14 +34,14 @@ exports.openaiModels = {
     "gpt-3.5-turbo-0125": "gpt-3.5-turbo-0125",
     "gpt-4.1-nano": "gpt-4.1-nano",
     "gpt-4.1-mini": "gpt-4.1-mini",
-    "gpt-4.1": "gpt-4.1",
+    "gpt-4.1": "gpt-4.1-2025-04-14",
     "o4-mini": "o4-mini",
 };
 // Create a Set of valid model names for fast lookup
-const validOpenAIModelValues = new Set(Object.values(exports.openaiModels));
+const validOpenAIModelValues = new Set(Object.keys(exports.openaiModels));
 // Helper function to validate OpenAI model
 function isValidOpenAIModel(model) {
-    return validOpenAIModelValues.has(model);
+    return Object.keys(exports.openaiModels).includes(model);
 }
 // Function to format messages for OpenAI
 function formatMessagesForOpenAI(messages) {
@@ -70,7 +70,7 @@ function generateOpenAIStreamText(messages, modelName) {
             // Format messages for OpenAI
             const formattedMessages = formatMessagesForOpenAI(messages);
             // Initialize the model
-            const MODEL = (0, openai_1.openai)(modelName);
+            const MODEL = (0, openai_1.openai)(exports.openaiModels[modelName]);
             const { textStream } = (0, ai_1.streamText)({
                 model: MODEL,
                 messages: formattedMessages,
@@ -80,7 +80,6 @@ function generateOpenAIStreamText(messages, modelName) {
                     _c = textStream_1_1.value;
                     _d = false;
                     const textPart = _c;
-                    console.log(textPart);
                     yield yield __await(textPart);
                 }
             }

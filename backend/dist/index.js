@@ -341,7 +341,7 @@ app.post('/api/chat', (req, res) => __awaiter(void 0, void 0, void 0, function* 
             const isImageIncompatibleModel = [
                 'gpt-4', 'o3-mini', 'o3', 'o4-mini', 'o1-preview'
             ].includes(actualModel);
-            if (search) {
+            if (search === true) {
                 actualModel = "gpt-4o-mini-search-preview";
             }
             console.log(`Using model: ${actualModel}`);

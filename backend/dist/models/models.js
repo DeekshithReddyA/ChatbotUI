@@ -27,7 +27,7 @@ const openai_1 = require("./openai");
 // Combine both model types for validation
 exports.allModels = Object.assign(Object.assign({}, openai_1.openaiModels), google_1.googleModels);
 // Create a Set of valid model names for fast lookup
-const validModelValues = new Set(Object.values(exports.allModels));
+const validModelValues = new Set(Object.keys(exports.allModels));
 // Unified generator function that routes to the appropriate implementation
 function generateStreamText(messages, model) {
     return __asyncGenerator(this, arguments, function* generateStreamText_1() {
@@ -42,7 +42,6 @@ function generateStreamText(messages, model) {
             // Route to the appropriate implementation based on model family
             if (family === "gpt" || family.startsWith("o")) {
                 // Route to OpenAI implementation
-                // if (model === "gpt-4o-mini") model="gpt-4o-mini-search-preview";
                 const openaiTextStream = (0, openai_1.generateOpenAIStreamText)(messages, model);
                 try {
                     for (var _k = true, openaiTextStream_1 = __asyncValues(openaiTextStream), openaiTextStream_1_1; openaiTextStream_1_1 = yield __await(openaiTextStream_1.next()), _a = openaiTextStream_1_1.done, !_a; _k = true) {

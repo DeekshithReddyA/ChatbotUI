@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 import { generateStreamText } from './models/models';
 import prisma from './config';
 import userRouter from './routes/user';
-import convoRouter, { appendMessage, client, BUCKET_NAME } from './routes/convo';
+import convoRouter, { appendMessage, client } from './routes/convo';
 import { PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 
 dotenv.config();
