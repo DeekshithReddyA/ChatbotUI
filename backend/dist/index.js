@@ -63,7 +63,7 @@ const convo_1 = __importStar(require("./routes/convo"));
 const client_s3_1 = require("@aws-sdk/client-s3");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 app.use((0, cors_1.default)());
 // Increase JSON body size limit to 50MB for image uploads
 app.use(express_1.default.json({ limit: '50mb' }));

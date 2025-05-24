@@ -4,7 +4,7 @@ import MessageInput from "./MessageInput";
 import { Messages } from "./Messages";
 import ModelSelector from "./ModelSelection";
 import { SSE } from "sse.js";
-import { Menu as MenuIcon, Sparkles, Cpu } from "lucide-react";
+import { Menu as MenuIcon } from "lucide-react";
 import { Button } from "./ui/Button";
 import { AIModel } from "../types/AIModel";
 import axios from "axios";
@@ -77,7 +77,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
   const [aiResponse, setAiResponse] = useState("");
   
   // Stream control state
-  const [streamPaused, setStreamPaused] = useState(false);
+  // const [streamPaused, setStreamPaused] = useState(false);
   const streamSource = useRef<SSE | null>(null);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -215,7 +215,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
       }
     })
     .then(response => {
-      console.log(`Conversation ${id} successfully deleted on server`);
+      console.log(`Conversation ${id} successfully deleted on server`, response.data);
     })
     .catch(error => {
       console.error(`Error deleting conversation ${id} on server:`, error);
@@ -766,7 +766,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
             return;
           }
           
-          if (streamPaused) return;
+          // if (streamPaused) return;
           
           try {
             // Parse the event data as JSON
@@ -947,7 +947,7 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
           return;
         }
 
-        if (streamPaused) return;
+        // if (streamPaused) return;
 
         try {
           // Parse the event data as JSON
@@ -979,13 +979,13 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
     }
   };
 
-  const formatTimestamp = (date: Date) =>
-    date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  // const formatTimestamp = (date: Date) =>
+  //   date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-  const getModelIcon = (modelName: string) =>
-    modelName.toLowerCase().includes("gpt") ? <Sparkles className="h-3 w-3 text-accent" /> :
-    modelName.toLowerCase().includes("claude") ? <Cpu className="h-3 w-3 text-accent" /> :
-    <span />;
+  // const getModelIcon = (modelName: string) =>
+  //   modelName.toLowerCase().includes("gpt") ? <Sparkles className="h-3 w-3 text-accent" /> :
+  //   modelName.toLowerCase().includes("claude") ? <Cpu className="h-3 w-3 text-accent" /> :
+  //   <span />;
 
   // Handle changing the model for the current conversation
   const handleModelChange = (modelId: string) => {
@@ -1183,10 +1183,10 @@ export const ChatInterface = (props: ChatInterfaceProps) => {
     }
   };
 
-  // Pause/resume streaming
-  const toggleStreamPause = () => {
-    setStreamPaused(!streamPaused);
-  };
+  // // Pause/resume streaming
+  // const toggleStreamPause = () => {
+  //   setStreamPaused(!streamPaused);
+  // };
 
   // Handle reply with selected text context
   const handleReplyWithContext = (text: string) => {

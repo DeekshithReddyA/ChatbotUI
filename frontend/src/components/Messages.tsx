@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { cn } from "../lib/utils";
 import { ScrollArea } from "./ui/ScrollArea";
-import { Bot, Sparkles, Cpu, FileIcon } from "lucide-react";
+import {  Sparkles, Cpu, FileIcon } from "lucide-react";
 import LatexText from "./Latex";
 import { AnimatePresence, motion } from "framer-motion";
 import { AIModel } from "../types/AIModel";
-import { containsLatexMath, shouldRenderAsLatex } from "../lib/math-utils";
+import { containsLatexMath } from "../lib/math-utils";
 
 interface Message {
   id: string;
@@ -76,10 +76,10 @@ function isJsonWithImages(str: string): boolean {
 }
 
 // Helper function to extract text from multimodal content
-function extractTextContent(contentArray: any[]): string {
-  const textParts = contentArray.filter(part => part.type === 'text');
-  return textParts.map(part => part.text).join('\n');
-}
+// function extractTextContent(contentArray: any[]): string {
+//   const textParts = contentArray.filter(part => part.type === 'text');
+//   return textParts.map(part => part.text).join('\n');
+// }
 
 // Helper function to render multimodal content
 function renderMultimodalContent(content: string) {
@@ -134,20 +134,20 @@ function renderMultimodalContent(content: string) {
 
 export const Messages = ({
   messages,
-  currentModel = "gpt-4",
-  onModelChange = () => {},
+  // currentModel = "gpt-4",
+  // onModelChange = () => {},
   isLoading = false,
   models,
-  selectedText = "",
+  // selectedText = "",
   setSelectedText = () => {},
-  onReplyWithContext = () => {},
+  // onReplyWithContext = () => {},
   streamingResponse = "",
-  onStopStreaming = () => {},
+  // onStopStreaming = () => {},
 }: MessageThreadProps) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const streamingMessageRef = useRef<HTMLDivElement>(null);
-  const [selectionPosition, setSelectionPosition] = useState<{ x: number; y: number } | null>(null);
+  // const [selectionPosition, setSelectionPosition] = useState<{ x: number; y: number } | null>(null);
   const [renderedResponse, setRenderedResponse] = useState("");
   const streamingTimer = useRef<NodeJS.Timeout | null>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -216,8 +216,8 @@ export const Messages = ({
     }
   }, [isLoading]);
 
-  const formatTimestamp = (date: Date) =>
-    date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  // const formatTimestamp = (date: Date) =>
+  //   date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
   const getModelIcon = (modelName: string) =>
     modelName.toLowerCase().includes("gpt") ? <Sparkles className="h-3 w-3 text-accent" /> :
@@ -231,7 +231,7 @@ export const Messages = ({
     const sel = window.getSelection();
     if (!sel || !sel.toString().trim()) {
       setSelectedText("");
-      setSelectionPosition(null);
+      // setSelectionPosition(null);
       return;
     }
 
@@ -245,9 +245,9 @@ export const Messages = ({
     }
 
     const text = sel.toString().trim();
-    const rect = range.getBoundingClientRect();
+    // const rect = range.getBoundingClientRect();
     setSelectedText(text);
-    setSelectionPosition({ x: rect.left + rect.width / 2, y: rect.top - 10 });
+    // setSelectionPosition({ x: rect.left + rect.width / 2, y: rect.top - 10 });
   };
 
   useEffect(() => {
@@ -269,7 +269,7 @@ export const Messages = ({
     const handleClickOutside = (e: MouseEvent) => {
       if (messagesContainerRef.current && !messagesContainerRef.current.contains(e.target as Node)) {
         setSelectedText("");
-        setSelectionPosition(null);
+        // setSelectionPosition(null);
       }
     };
     

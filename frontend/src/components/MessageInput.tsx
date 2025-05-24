@@ -1,14 +1,14 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
   SendIcon,
-  Sparkles,
+  // Sparkles,
   MicIcon,
   PaperclipIcon,
   SearchIcon,
   XIcon,
   ImageIcon,
   FileIcon,
-  StopCircleIcon,
+  // StopCircleIcon,
   SquareIcon
 } from "lucide-react";
 import { cn } from "../lib/utils";

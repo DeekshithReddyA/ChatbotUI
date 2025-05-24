@@ -6,7 +6,7 @@ import { Settings2Icon } from "./icons/Settings2Icon";
 import { BadgeIcon } from "./icons/BadgeIcon";
 import { TrashIcon, XIcon } from "lucide-react";
 import { cn } from "../lib/utils";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { useNavigate } from "react-router-dom";
 
