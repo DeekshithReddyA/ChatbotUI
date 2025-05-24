@@ -10,4 +10,3 @@ openAI models not supporting web search, gotta do MCP // least priority
 -> other files as input
 -> generating image by google
 -> system prompt
-
